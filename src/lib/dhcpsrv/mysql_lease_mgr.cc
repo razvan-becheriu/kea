@@ -2057,36 +2057,46 @@ MySqlLeaseMgr::deleteLeaseCommon(StatementIndex stindex, MYSQL_BIND* bind) {
 }
 
 bool
-MySqlLeaseMgr::deleteLease(const isc::asiolink::IOAddress& addr) {
+MySqlLeaseMgr::deleteLease(const Lease4Ptr& lease) {
+    const isc::asiolink::IOAddress& addr = lease->addr_;
     LOG_DEBUG(dhcpsrv_logger, DHCPSRV_DBG_TRACE_DETAIL,
-              DHCPSRV_MYSQL_DELETE_ADDR).arg(addr.toText());
+              DHCPSRV_MYSQL_DELETE_ADDR)
+        .arg(addr.toText());
 
     // Set up the WHERE clause value
     MYSQL_BIND inbind[1];
     memset(inbind, 0, sizeof(inbind));
 
-    if (addr.isV4()) {
-        uint32_t addr4 = addr.toUint32();
+    uint32_t addr4 = addr.toUint32();
 
-        inbind[0].buffer_type = MYSQL_TYPE_LONG;
-        inbind[0].buffer = reinterpret_cast<char*>(&addr4);
-        inbind[0].is_unsigned = MLM_TRUE;
+    inbind[0].buffer_type = MYSQL_TYPE_LONG;
+    inbind[0].buffer = reinterpret_cast<char*>(&addr4);
+    inbind[0].is_unsigned = MLM_TRUE;
 
-        return (deleteLeaseCommon(DELETE_LEASE4, inbind) > 0);
+    return (deleteLeaseCommon(DELETE_LEASE4, inbind) > 0);
+}
 
-    } else {
-        std::string addr6 = addr.toText();
-        unsigned long addr6_length = addr6.size();
+bool
+MySqlLeaseMgr::deleteLease(const Lease6Ptr& lease) {
+    const isc::asiolink::IOAddress& addr = lease->addr_;
+    LOG_DEBUG(dhcpsrv_logger, DHCPSRV_DBG_TRACE_DETAIL,
+              DHCPSRV_MYSQL_DELETE_ADDR)
+        .arg(addr.toText());
 
-        // See the earlier description of the use of "const_cast" when accessing
-        // the address for an explanation of the reason.
-        inbind[0].buffer_type = MYSQL_TYPE_STRING;
-        inbind[0].buffer = const_cast<char*>(addr6.c_str());
-        inbind[0].buffer_length = addr6_length;
-        inbind[0].length = &addr6_length;
+    // Set up the WHERE clause value
+    MYSQL_BIND inbind[1];
+    memset(inbind, 0, sizeof(inbind));
+    std::string addr6 = addr.toText();
+    unsigned long addr6_length = addr6.size();
 
-        return (deleteLeaseCommon(DELETE_LEASE6, inbind) > 0);
-    }
+    // See the earlier description of the use of "const_cast" when accessing
+    // the address for an explanation of the reason.
+    inbind[0].buffer_type = MYSQL_TYPE_STRING;
+    inbind[0].buffer = const_cast<char*>(addr6.c_str());
+    inbind[0].buffer_length = addr6_length;
+    inbind[0].length = &addr6_length;
+
+    return (deleteLeaseCommon(DELETE_LEASE6, inbind) > 0);
 }
 
 uint64_t

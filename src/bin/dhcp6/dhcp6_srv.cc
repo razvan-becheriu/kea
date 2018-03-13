@@ -2029,7 +2029,6 @@ Dhcpv6Srv::extendIA_PD(const Pkt6Ptr& query,
                                (*l)->preferred_lft_, (*l)->valid_lft_));
         ia_rsp->addOption(prf);
 
-
         if (pd_exclude_requested) {
             // PD exclude option has been requested via ORO, thus we need to
             // include it if the pool configuration specifies this option.
@@ -2043,7 +2042,6 @@ Dhcpv6Srv::extendIA_PD(const Pkt6Ptr& query,
                 }
             }
         }
-
 
         LOG_INFO(lease6_logger, DHCP6_PD_LEASE_RENEW)
             .arg(query->getLabel())
@@ -2322,7 +2320,7 @@ Dhcpv6Srv::releaseIA_NA(const DuidPtr& duid, const Pkt6Ptr& query,
     bool success = false; // was the removal operation successful?
 
     if (!skip) {
-        success = LeaseMgrFactory::instance().deleteLease(lease->addr_);
+        success = LeaseMgrFactory::instance().deleteLease(lease);
     }
 
     // Here the success should be true if we removed lease successfully
@@ -2474,7 +2472,7 @@ Dhcpv6Srv::releaseIA_PD(const DuidPtr& duid, const Pkt6Ptr& query,
     bool success = false; // was the removal operation successful?
 
     if (!skip) {
-        success = LeaseMgrFactory::instance().deleteLease(lease->addr_);
+        success = LeaseMgrFactory::instance().deleteLease(lease);
     } else {
         // Callouts decided to skip the next processing step. The next
         // processing step would to send the packet, so skip at this

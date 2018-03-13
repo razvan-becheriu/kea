@@ -1403,19 +1403,30 @@ PgSqlLeaseMgr::deleteLeaseCommon(StatementIndex stindex,
 }
 
 bool
-PgSqlLeaseMgr::deleteLease(const isc::asiolink::IOAddress& addr) {
+PgSqlLeaseMgr::deleteLease(const Lease4Ptr& lease) {
+    const isc::asiolink::IOAddress& addr = lease->addr_;
     LOG_DEBUG(dhcpsrv_logger, DHCPSRV_DBG_TRACE_DETAIL,
-              DHCPSRV_PGSQL_DELETE_ADDR).arg(addr.toText());
+              DHCPSRV_PGSQL_DELETE_ADDR)
+        .arg(addr.toText());
 
     // Set up the WHERE clause value
     PsqlBindArray bind_array;
 
-    if (addr.isV4()) {
-        std::string addr4_str = boost::lexical_cast<std::string>
-                                 (addr.toUint32());
-        bind_array.add(addr4_str);
-        return (deleteLeaseCommon(DELETE_LEASE4, bind_array) > 0);
-    }
+    std::string addr4_str =
+        boost::lexical_cast<std::string>(addr.toUint32());
+    bind_array.add(addr4_str);
+    return (deleteLeaseCommon(DELETE_LEASE4, bind_array) > 0);
+}
+
+bool
+PgSqlLeaseMgr::deleteLease(const Lease6Ptr& lease) {
+    const isc::asiolink::IOAddress& addr = lease->addr_;
+    LOG_DEBUG(dhcpsrv_logger, DHCPSRV_DBG_TRACE_DETAIL,
+              DHCPSRV_PGSQL_DELETE_ADDR)
+        .arg(addr.toText());
+
+    // Set up the WHERE clause value
+    PsqlBindArray bind_array;
 
     std::string addr6_str = addr.toText();
     bind_array.add(addr6_str);
