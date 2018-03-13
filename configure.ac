@@ -410,7 +410,7 @@ case "$host" in
         ;;
 esac
 if [ test $kea_undefined_pthread_behavior = "yes" ]; then
-   AC_DEFINE([HAS_UNDEFINED_PTHREAD_BEHAVIOR], [1], [Does this platform have some undefined pthreads behavior?])
+    AC_DEFINE([HAS_UNDEFINED_PTHREAD_BEHAVIOR], [1], [Does this platform have some undefined pthreads behavior?])
 fi
 
 # Our experiments have shown Solaris 10 has broken support for the
