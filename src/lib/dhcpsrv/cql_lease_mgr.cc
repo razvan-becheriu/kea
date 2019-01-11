@@ -19,7 +19,6 @@
 #include <config.h>
 
 #include <dhcpsrv/cql_lease_mgr.h>
-#include <cql/cql_transaction.h>
 #include <dhcpsrv/dhcpsrv_log.h>
 #include <dhcpsrv/utils.h>
 
