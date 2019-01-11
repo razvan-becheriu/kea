@@ -32,7 +32,6 @@
 using namespace isc::data;
 using namespace isc::db;
 using isc::asiolink::IOAddress;
-using namespace isc::util::thread;
 
 namespace isc {
 namespace dhcp {
@@ -551,7 +550,7 @@ void CqlLease4Exchange::createBindForUpdate(const Lease4Ptr &lease,
         // address: bigint
         // The address in the Lease structure is an IOAddress object.
         // Convert this to an integer for storage.
-        address_ = static_cast<cass_int64_t>(lease_->addr_.addressPlusPortToUint64());
+        address_ = static_cast<cass_int64_t>(lease_->addr_.toUint32());
 
         // hwaddr: blob
         if (lease_->hwaddr_ && lease_->hwaddr_->hwaddr_.size() > 0) {
@@ -665,7 +664,7 @@ CqlLease4Exchange::createBindForDelete(
 
     try {
         // address: bigint
-        address_ = static_cast<cass_int64_t>(lease_->addr_.addressPlusPortToUint64());
+        address_ = static_cast<cass_int64_t>(lease_->addr_.toUint32());
 
         // hwaddr: blob
         if (lease_->hwaddr_ && lease_->hwaddr_->hwaddr_.size() > 0) {
@@ -2097,7 +2096,7 @@ CqlLeaseMgr::getLease4(const IOAddress &addr) const {
         .arg(addr.toText());
 
     // Set up the WHERE clause value
-    cass_int64_t addr4 = static_cast<cass_int64_t>(addr.addressPlusPortToUint64());
+    cass_int64_t addr4 = static_cast<cass_int64_t>(addr.toUint32());
     AnyArray data{&addr4};
 
 
