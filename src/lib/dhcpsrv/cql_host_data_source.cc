@@ -1616,9 +1616,6 @@ CqlHostDataSourceImpl::insertOrDelete(const HostPtr& host, bool insert) {
         return (false);
     }
 
-    // Start transaction.
-    CqlTransaction transaction(dbconn_);
-
     // Get option space names and vendor space names and combine them within a
     // single list.
 
@@ -1652,16 +1649,12 @@ CqlHostDataSourceImpl::insertOrDelete(const HostPtr& host, bool insert) {
         result = insertOrDeleteHostWithReservations(insert, host, NULL, option_spaces4, cfg_option4,
                                                     option_spaces6, cfg_option6);
     }
-    transaction.commit();
 
     return (result);
 }
 
 ConstHostPtr
 CqlHostDataSourceImpl::get4(const SubnetID& subnet_id, const asiolink::IOAddress& address) const {
-    // Start transaction.
-    CqlTransaction transaction(dbconn_);
-
     if (!address.isV4()) {
         isc_throw(BadValue, "CqlHostDataSource::get4(2): wrong address type, "
                             "address supplied is not an IPv4 address");
@@ -1679,8 +1672,6 @@ CqlHostDataSourceImpl::get4(const SubnetID& subnet_id, const asiolink::IOAddress
     ConstHostPtr result = getHost(CqlHostExchange::GET_HOST_BY_IPV4_SUBNET_ID_AND_ADDRESS,
                                   where_values);
 
-    transaction.commit();
-
     return (result);
 }
 
@@ -1689,9 +1680,6 @@ CqlHostDataSourceImpl::get4(const SubnetID& subnet_id,
                             const Host::IdentifierType& identifier_type,
                             const uint8_t* identifier_begin,
                             const size_t identifier_len) const {
-    // Start transaction.
-    CqlTransaction transaction(dbconn_);
-
     // Convert to CQL data types.
     CassBlob host_identifier(identifier_begin, identifier_begin + identifier_len);
     cass_int32_t host_identifier_type = static_cast<cass_int32_t>(identifier_type);
@@ -1705,17 +1693,12 @@ CqlHostDataSourceImpl::get4(const SubnetID& subnet_id,
     ConstHostPtr result = getHost(CqlHostExchange::GET_HOST_BY_IPV4_SUBNET_ID_AND_HOST_ID,
                                   where_values);
 
-    transaction.commit();
-
     return (result);
 }
 
 ConstHostPtr
 CqlHostDataSourceImpl::get6(const asiolink::IOAddress& prefix,
                             const uint8_t prefix_len) const {
-    // Start transaction.
-    CqlTransaction transaction(dbconn_);
-
     // Convert to CQL data types.
     std::string reserved_ipv6_prefix_address = prefix.toText();
     cass_int32_t reserved_ipv6_prefix_length = prefix_len;
@@ -1752,8 +1735,6 @@ CqlHostDataSourceImpl::get6(const asiolink::IOAddress& prefix,
 
     ConstHostPtr result = collection.front();
 
-    transaction.commit();
-
     return (result);
 }
 
@@ -1785,9 +1766,6 @@ CqlHostDataSourceImpl::get6(const SubnetID& subnet_id,
 
 ConstHostPtr
 CqlHostDataSourceImpl::get6(const SubnetID& subnet_id, const IOAddress& address) const {
-    // Start transaction.
-    CqlTransaction transaction(dbconn_);
-
     // Convert to CQL data types.
     cass_int32_t host_ipv6_subnet_id = static_cast<cass_int32_t>(subnet_id);
     std::string reserved_ipv6_prefix_address = address.toText();
@@ -1800,8 +1778,6 @@ CqlHostDataSourceImpl::get6(const SubnetID& subnet_id, const IOAddress& address)
     ConstHostPtr result = getHost(CqlHostExchange::GET_HOST_BY_IPV6_SUBNET_ID_AND_ADDRESS,
                                   where_values);
 
-    transaction.commit();
-
     return (result);
 }
 
@@ -1809,9 +1785,6 @@ ConstHostCollection
 CqlHostDataSourceImpl::getAll(const Host::IdentifierType& identifier_type,
                               const uint8_t* identifier_begin,
                               const size_t identifier_len) const {
-    // Start transaction.
-    CqlTransaction transaction(dbconn_);
-
     // Convert to CQL data types.
     CassBlob host_identifier(identifier_begin, identifier_begin + identifier_len);
     cass_int32_t host_identifier_type = static_cast<cass_int32_t>(identifier_type);
@@ -1824,16 +1797,11 @@ CqlHostDataSourceImpl::getAll(const Host::IdentifierType& identifier_type,
     ConstHostCollection result = getHostCollection(CqlHostExchange::GET_HOST_BY_HOST_ID,
                                                    where_values);
 
-    transaction.commit();
-
     return (result);
 }
 
 ConstHostCollection
 CqlHostDataSourceImpl::getAll4(const asiolink::IOAddress& address) const {
-    // Start transaction.
-    CqlTransaction transaction(dbconn_);
-
     // Convert to CQL data types.
     cass_int32_t host_ipv4_address = static_cast<cass_int32_t>(address.toUint32());
 
@@ -1845,24 +1813,17 @@ CqlHostDataSourceImpl::getAll4(const asiolink::IOAddress& address) const {
     ConstHostCollection result = getHostCollection(CqlHostExchange::GET_HOST_BY_IPV4_ADDRESS,
                                                    where_values);
 
-    transaction.commit();
-
     return (result);
 }
 
 ConstHostCollection
 CqlHostDataSourceImpl::getAllHosts() const {
-    // Start transaction.
-    CqlTransaction transaction(dbconn_);
-
     // Bind to array.
     AnyArray where_values;
 
 
     // Run statement.
     ConstHostCollection result = getHostCollection(CqlHostExchange::GET_HOST, where_values);
-
-    transaction.commit();
 
     return (result);
 }

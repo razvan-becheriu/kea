@@ -24,7 +24,6 @@
 
 #include <dhcp/duid.h>
 #include <dhcp/hwaddr.h>
-#include <util/threads/reverse_lock.h>
 
 #include <asiolink/io_address.h>
 
