@@ -788,9 +788,9 @@ CqlLease4Exchange::retrieve() {
             }
         }
 
-        Lease4Ptr result(std::make_shared<Lease4>(addr4, hwaddr, client_id_.data(),
-                                                  client_id_.size(), valid_lifetime_, 0, 0, cltt,
-                                                  subnet_id_, fqdn_fwd_, fqdn_rev_, hostname_));
+        Lease4Ptr result(boost::make_shared<Lease4>(addr4, hwaddr, client_id_.data(),
+                                                    client_id_.size(), valid_lifetime_, 0, 0, cltt,
+                                                    subnet_id_, fqdn_fwd_, fqdn_rev_, hostname_));
 
 
         result->state_ = state_;
@@ -1629,10 +1629,10 @@ CqlLease6Exchange::retrieve() {
 
         // Create the lease and set the cltt (after converting from the
         // expire time retrieved from the database).
-        Lease6Ptr result(std::make_shared<Lease6>(static_cast<Lease::Type>(lease_type_), addr, duid,
-                                                  iaid_, pref_lifetime_, valid_lifetime_, 0, 0,
-                                                  subnet_id_, fqdn_fwd_, fqdn_rev_, hostname_,
-                                                  hwaddr, prefix_len_));
+        Lease6Ptr result(boost::make_shared<Lease6>(static_cast<Lease::Type>(lease_type_), addr, duid,
+                                                    iaid_, pref_lifetime_, valid_lifetime_, 0, 0,
+                                                    subnet_id_, fqdn_fwd_, fqdn_rev_, hostname_,
+                                                    hwaddr, prefix_len_));
 
         time_t cltt = 0;
         CqlExchange<Lease6>::convertFromDatabaseTime(expire_, valid_lifetime_, cltt);
@@ -2009,8 +2009,8 @@ void CqlLeaseStatsQuery::createBindForSelect(AnyArray &data,
 }
 
 LeaseStatsRowPtr CqlLeaseStatsQuery::retrieve() {
-    return std::make_shared<LeaseStatsRow>(subnet_id_, static_cast<Lease::Type>(lease_type_),
-                                           state_, 1);
+    return boost::make_shared<LeaseStatsRow>(subnet_id_, static_cast<Lease::Type>(lease_type_),
+                                             state_, 1);
 }
 
 CqlLeaseMgr::CqlLeaseMgr(const DatabaseConnection::ParameterMap &parameters)

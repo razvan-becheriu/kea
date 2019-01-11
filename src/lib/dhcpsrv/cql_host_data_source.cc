@@ -1168,7 +1168,7 @@ HostPtr CqlHostExchange::retrieve() {
     asiolink::IOAddress ipv4_reservation =
         asiolink::IOAddress(static_cast<uint32_t>(host_ipv4_address_));
 
-    HostPtr host(std::make_shared<Host>(
+    HostPtr host(boost::make_shared<Host>(
         host_identifier.data(), host_identifier.size(), host_identifier_type, ipv4_subnet_id,
         ipv6_subnet_id, ipv4_reservation, hostname_, host_ipv4_client_classes_,
         host_ipv6_client_classes_, static_cast<uint32_t>(host_ipv4_next_server_),
@@ -2051,7 +2051,7 @@ CqlHostDataSource::add(const HostPtr& host) {
 
 bool
 CqlHostDataSource::del(const SubnetID& subnet_id, const asiolink::IOAddress& address) {
-    HostPtr host = std::const_pointer_cast<Host>(impl_->get4(subnet_id, address));
+    HostPtr host = boost::const_pointer_cast<Host>(impl_->get4(subnet_id, address));
 
     return (host ? impl_->insertOrDelete(host, false) : false);
 }
@@ -2059,8 +2059,8 @@ CqlHostDataSource::del(const SubnetID& subnet_id, const asiolink::IOAddress& add
 bool
 CqlHostDataSource::del4(const SubnetID& subnet_id, const Host::IdentifierType& identifier_type,
                         const uint8_t* identifier_begin, const size_t identifier_len) {
-    HostPtr host = std::const_pointer_cast<Host>(impl_->get4(subnet_id, identifier_type,
-                                                             identifier_begin, identifier_len));
+    HostPtr host = boost::const_pointer_cast<Host>(impl_->get4(subnet_id, identifier_type,
+                                                               identifier_begin, identifier_len));
 
     return (host ? impl_->insertOrDelete(host, false) : false);
 }
@@ -2068,8 +2068,8 @@ CqlHostDataSource::del4(const SubnetID& subnet_id, const Host::IdentifierType& i
 bool
 CqlHostDataSource::del6(const SubnetID& subnet_id, const Host::IdentifierType& identifier_type,
                         const uint8_t* identifier_begin, const size_t identifier_len) {
-    HostPtr host = std::const_pointer_cast<Host>(impl_->get6(subnet_id, identifier_type,
-                                                             identifier_begin, identifier_len));
+    HostPtr host = boost::const_pointer_cast<Host>(impl_->get6(subnet_id, identifier_type,
+                                                               identifier_begin, identifier_len));
 
     return (host ? impl_->insertOrDelete(host, false) : false);
 }
