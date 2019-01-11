@@ -547,13 +547,6 @@ public:
     ///        failed.
     db::VersionPair getVersion() const override final;
 
-
-    /// @brief Start Transaction
-    ///
-    /// Start transaction for database operations. On databases that don't
-    /// support transactions, this is a no-op.
-    bool startTransaction() override final;
-
     /// @brief Commit Transactions
     ///
     /// This is a no-op for Cassandra.
