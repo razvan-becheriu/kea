@@ -20,6 +20,8 @@
 
 #include <stdint.h>
 
+#include <boost/shared_ptr.hpp>
+
 #include <memory>
 #include <unordered_map>
 #include <utility>
@@ -29,7 +31,7 @@ namespace isc {
 namespace db {
 
 template <typename T>
-using Ptr = std::shared_ptr<T>;
+using Ptr = boost::shared_ptr<T>;
 
 template <typename T>
 using Collection = std::vector<Ptr<T>>;
@@ -39,7 +41,7 @@ using Map = std::unordered_map<std::string, T>;
 
 /// @brief Pair containing major and minor versions
 using VersionPair = std::pair<uint32_t, uint32_t>;
-using VersionPairPtr = std::shared_ptr<VersionPair>;
+using VersionPairPtr = boost::shared_ptr<VersionPair>;
 
 /// @brief Base class for backend exchanges.
 struct SqlExchange {

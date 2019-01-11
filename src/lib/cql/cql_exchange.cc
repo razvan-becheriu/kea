@@ -25,6 +25,7 @@
 #include <database/sql_common.h>
 
 #include <boost/core/demangle.hpp>
+#include <boost/make_shared.hpp>
 #include <boost/multi_index/hashed_index.hpp>
 #include <boost/multi_index/member.hpp>
 #include <boost/multi_index/sequenced_index.hpp>
@@ -278,7 +279,7 @@ void CqlVersionExchange::createBindForSelect(AnyArray& data, StatementTag const&
 }
 
 VersionPairPtr CqlVersionExchange::retrieve() {
-    return std::make_shared<VersionPair>(version_, minor_);
+    return boost::make_shared<VersionPair>(version_, minor_);
 }
 
 VersionPairPtr CqlVersionExchange::retrieveVersion(CqlConnection const& connection) {
