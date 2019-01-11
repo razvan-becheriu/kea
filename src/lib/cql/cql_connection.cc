@@ -20,7 +20,6 @@
 
 #include <cql/cql_connection.h>
 #include <cql/cql_exchange.h>
-#include <cql/cql_transaction.h>
 
 #include <database/db_exceptions.h>
 #include <database/db_log.h>
