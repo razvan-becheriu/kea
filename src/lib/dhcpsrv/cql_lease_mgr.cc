@@ -2055,8 +2055,6 @@ CqlLeaseMgr::getDBVersion() {
 
 bool
 CqlLeaseMgr::addLease(const Lease4Ptr &lease) {
-    ReverseLock<std::mutex> rlk(LeaseMgr::getLock());
-
     LOG_DEBUG(dhcpsrv_logger, DHCPSRV_DBG_TRACE_DETAIL, DHCPSRV_CQL_ADD_ADDR4)
         .arg(lease->addr_.toText());
 
@@ -2076,8 +2074,6 @@ CqlLeaseMgr::addLease(const Lease4Ptr &lease) {
 
 bool
 CqlLeaseMgr::addLease(const Lease6Ptr &lease) {
-    ReverseLock<std::mutex> rlk(LeaseMgr::getLock());
-
     LOG_DEBUG(dhcpsrv_logger, DHCPSRV_DBG_TRACE_DETAIL, DHCPSRV_CQL_ADD_ADDR6)
         .arg(lease->addr_.toText());
 
@@ -2097,8 +2093,6 @@ CqlLeaseMgr::addLease(const Lease6Ptr &lease) {
 
 Lease4Ptr
 CqlLeaseMgr::getLease4(const IOAddress &addr) const {
-    ReverseLock<std::mutex> rlk(LeaseMgr::getLock());
-
     LOG_DEBUG(dhcpsrv_logger, DHCPSRV_DBG_TRACE_DETAIL, DHCPSRV_CQL_GET_ADDR4)
         .arg(addr.toText());
 
@@ -2118,8 +2112,6 @@ CqlLeaseMgr::getLease4(const IOAddress &addr) const {
 
 Lease4Collection
 CqlLeaseMgr::getLease4(const HWAddr &hwaddr) const {
-    ReverseLock<std::mutex> rlk(LeaseMgr::getLock());
-
     LOG_DEBUG(dhcpsrv_logger, DHCPSRV_DBG_TRACE_DETAIL, DHCPSRV_CQL_GET_HWADDR)
         .arg(hwaddr.toText());
 
@@ -2140,8 +2132,6 @@ CqlLeaseMgr::getLease4(const HWAddr &hwaddr) const {
 
 Lease4Ptr
 CqlLeaseMgr::getLease4(const HWAddr &hwaddr, SubnetID subnet_id) const {
-    ReverseLock<std::mutex> rlk(LeaseMgr::getLock());
-
     LOG_DEBUG(dhcpsrv_logger, DHCPSRV_DBG_TRACE_DETAIL,
               DHCPSRV_CQL_GET_SUBID_HWADDR)
         .arg(subnet_id)
@@ -2167,8 +2157,6 @@ CqlLeaseMgr::getLease4(const HWAddr &hwaddr, SubnetID subnet_id) const {
 
 Lease4Collection
 CqlLeaseMgr::getLease4(const ClientId &clientid) const {
-    ReverseLock<std::mutex> rlk(LeaseMgr::getLock());
-
     LOG_DEBUG(dhcpsrv_logger, DHCPSRV_DBG_TRACE_DETAIL, DHCPSRV_CQL_GET_CLIENTID)
         .arg(clientid.toText());
 
@@ -2190,8 +2178,6 @@ CqlLeaseMgr::getLease4(const ClientId &clientid) const {
 Lease4Ptr
 CqlLeaseMgr::getLease4(const ClientId &clientid, const HWAddr &hwaddr,
                        SubnetID subnet_id) const {
-    ReverseLock<std::mutex> rlk(LeaseMgr::getLock());
-
     /// @todo: Remove this method in this and all other implementations.
     /// This method is currently not implemented because allocation engine
     /// searches for the lease using HW address or client identifier.
@@ -2207,8 +2193,6 @@ CqlLeaseMgr::getLease4(const ClientId &clientid, const HWAddr &hwaddr,
 
 Lease4Ptr
 CqlLeaseMgr::getLease4(const ClientId &clientid, SubnetID subnet_id) const {
-    ReverseLock<std::mutex> rlk(LeaseMgr::getLock());
-
     LOG_DEBUG(dhcpsrv_logger, DHCPSRV_DBG_TRACE_DETAIL, DHCPSRV_CQL_GET_SUBID_CLIENTID)
         .arg(subnet_id)
         .arg(clientid.toText());
@@ -2233,8 +2217,6 @@ CqlLeaseMgr::getLease4(const ClientId &clientid, SubnetID subnet_id) const {
 
 Lease4Collection
 CqlLeaseMgr::getLeases4(SubnetID subnet_id) const {
-    ReverseLock<std::mutex> rlk(LeaseMgr::getLock());
-
     LOG_DEBUG(dhcpsrv_logger, DHCPSRV_DBG_TRACE_DETAIL, DHCPSRV_CQL_GET_SUBID4)
         .arg(subnet_id);
 
@@ -2255,8 +2237,6 @@ CqlLeaseMgr::getLeases4(SubnetID subnet_id) const {
 
 Lease4Collection
 CqlLeaseMgr::getLeases4() const {
-    ReverseLock<std::mutex> rlk(LeaseMgr::getLock());
-
     LOG_DEBUG(dhcpsrv_logger, DHCPSRV_DBG_TRACE_DETAIL, DHCPSRV_CQL_GET4);
 
     // Set up the WHERE clause value
@@ -2274,8 +2254,6 @@ CqlLeaseMgr::getLeases4() const {
 Lease4Collection
 CqlLeaseMgr::getLeases4(const asiolink::IOAddress& lower_bound_address,
                         const LeasePageSize& page_size) const {
-    ReverseLock<std::mutex> rlk(LeaseMgr::getLock());
-
     // Expecting IPv4 address.
     if (!lower_bound_address.isV4()) {
         isc_throw(InvalidAddressFamily, "expected IPv4 address while "
@@ -2321,8 +2299,6 @@ CqlLeaseMgr::getLeases4(const asiolink::IOAddress& lower_bound_address,
 
 Lease6Ptr
 CqlLeaseMgr::getLease6(Lease::Type lease_type, const IOAddress &addr) const {
-    ReverseLock<std::mutex> rlk(LeaseMgr::getLock());
-
     std::string addr_data = addr.toText();
     LOG_DEBUG(dhcpsrv_logger, DHCPSRV_DBG_TRACE_DETAIL, DHCPSRV_CQL_GET_ADDR6)
         .arg(addr_data)
@@ -2373,8 +2349,6 @@ CqlLeaseMgr::getLeases6(const DUID& duid) const {
 
 Lease6Collection
 CqlLeaseMgr::getLeases6(Lease::Type lease_type, const DUID &duid, uint32_t iaid) const {
-    ReverseLock<std::mutex> rlk(LeaseMgr::getLock());
-
     LOG_DEBUG(dhcpsrv_logger, DHCPSRV_DBG_TRACE_DETAIL, DHCPSRV_CQL_GET_IAID_DUID)
         .arg(iaid)
         .arg(duid.toText())
@@ -2399,8 +2373,6 @@ CqlLeaseMgr::getLeases6(Lease::Type lease_type, const DUID &duid, uint32_t iaid)
 Lease6Collection
 CqlLeaseMgr::getLeases6(Lease::Type lease_type, const DUID &duid, uint32_t iaid,
                         SubnetID subnet_id) const {
-    ReverseLock<std::mutex> rlk(LeaseMgr::getLock());
-
     LOG_DEBUG(dhcpsrv_logger, DHCPSRV_DBG_TRACE_DETAIL, DHCPSRV_CQL_GET_IAID_SUBID_DUID)
         .arg(iaid)
         .arg(subnet_id)
@@ -2444,8 +2416,6 @@ CqlLeaseMgr::getLeases6() const {
 Lease6Collection
 CqlLeaseMgr::getLeases6(const asiolink::IOAddress& lower_bound_address,
                         const LeasePageSize& page_size) const {
-    ReverseLock<std::mutex> rlk(LeaseMgr::getLock());
-
     // Expecting IPv6 address.
     if (!lower_bound_address.isV6()) {
         isc_throw(InvalidAddressFamily, "expected IPv6 address while "
@@ -2500,8 +2470,6 @@ CqlLeaseMgr::getLeases6(const asiolink::IOAddress& lower_bound_address,
 void
 CqlLeaseMgr::getExpiredLeases4(Lease4Collection &expired_leases,
                                const size_t max_leases) const {
-    ReverseLock<std::mutex> rlk(LeaseMgr::getLock());
-
     LOG_DEBUG(dhcpsrv_logger, DHCPSRV_DBG_TRACE_DETAIL, DHCPSRV_CQL_GET_EXPIRED4)
         .arg(max_leases);
 
@@ -2512,8 +2480,6 @@ CqlLeaseMgr::getExpiredLeases4(Lease4Collection &expired_leases,
 void
 CqlLeaseMgr::getExpiredLeases6(Lease6Collection &expired_leases,
                                const size_t max_leases) const {
-    ReverseLock<std::mutex> rlk(LeaseMgr::getLock());
-
     LOG_DEBUG(dhcpsrv_logger, DHCPSRV_DBG_TRACE_DETAIL, DHCPSRV_CQL_GET_EXPIRED6)
         .arg(max_leases);
 
@@ -2523,8 +2489,6 @@ CqlLeaseMgr::getExpiredLeases6(Lease6Collection &expired_leases,
 
 void
 CqlLeaseMgr::updateLease4(const Lease4Ptr &lease) {
-    ReverseLock<std::mutex> rlk(LeaseMgr::getLock());
-
     LOG_DEBUG(dhcpsrv_logger, DHCPSRV_DBG_TRACE_DETAIL, DHCPSRV_CQL_UPDATE_ADDR4)
         .arg(lease->addr_.toText());
 
@@ -2541,8 +2505,6 @@ CqlLeaseMgr::updateLease4(const Lease4Ptr &lease) {
 
 void
 CqlLeaseMgr::updateLease6(const Lease6Ptr &lease) {
-    ReverseLock<std::mutex> rlk(LeaseMgr::getLock());
-
     LOG_DEBUG(dhcpsrv_logger, DHCPSRV_DBG_TRACE_DETAIL, DHCPSRV_CQL_UPDATE_ADDR6)
         .arg(lease->addr_.toText());
 
@@ -2559,7 +2521,6 @@ CqlLeaseMgr::updateLease6(const Lease6Ptr &lease) {
 
 bool
 CqlLeaseMgr::deleteLease(const Lease4Ptr &lease) {
-    ReverseLock<std::mutex> rlk(LeaseMgr::getLock());
     return deleteLeaseInternal(lease);
 }
 
@@ -2589,7 +2550,6 @@ CqlLeaseMgr::deleteLeaseInternal(const Lease4Ptr &lease) {
 
 bool
 CqlLeaseMgr::deleteLease(const Lease6Ptr &lease) {
-    ReverseLock<std::mutex> rlk(LeaseMgr::getLock());
     return deleteLeaseInternal(lease);
 }
 
@@ -2619,8 +2579,6 @@ CqlLeaseMgr::deleteLeaseInternal(const Lease6Ptr &lease) {
 
 uint64_t
 CqlLeaseMgr::deleteExpiredReclaimedLeases4(const uint32_t secs) {
-    ReverseLock<std::mutex> rlk(LeaseMgr::getLock());
-
     LOG_DEBUG(dhcpsrv_logger, DHCPSRV_DBG_TRACE_DETAIL,
               DHCPSRV_CQL_DELETE_EXPIRED_RECLAIMED4)
         .arg(secs);
@@ -2653,8 +2611,6 @@ CqlLeaseMgr::deleteExpiredReclaimedLeases4(const uint32_t secs) {
 
 uint64_t
 CqlLeaseMgr::deleteExpiredReclaimedLeases6(const uint32_t secs) {
-    ReverseLock<std::mutex> rlk(LeaseMgr::getLock());
-
     LOG_DEBUG(dhcpsrv_logger, DHCPSRV_DBG_TRACE_DETAIL,
               DHCPSRV_CQL_DELETE_EXPIRED_RECLAIMED6)
         .arg(secs);
@@ -2776,8 +2732,6 @@ CqlLeaseMgr::getVersion() const {
 
 bool
 CqlLeaseMgr::startTransaction() {
-    ReverseLock<std::mutex> rlk(LeaseMgr::getLock());
-
     LOG_DEBUG(dhcpsrv_logger, DHCPSRV_DBG_TRACE_DETAIL, DHCPSRV_CQL_BEGIN_TRANSACTION);
     dbconn_.startTransaction();
     return true;
@@ -2785,16 +2739,12 @@ CqlLeaseMgr::startTransaction() {
 
 void
 CqlLeaseMgr::commit() {
-    ReverseLock<std::mutex> rlk(LeaseMgr::getLock());
-
     LOG_DEBUG(dhcpsrv_logger, DHCPSRV_DBG_TRACE_DETAIL, DHCPSRV_CQL_COMMIT);
     dbconn_.commit();
 }
 
 void
 CqlLeaseMgr::rollback() {
-    ReverseLock<std::mutex> rlk(LeaseMgr::getLock());
-
     LOG_DEBUG(dhcpsrv_logger, DHCPSRV_DBG_TRACE_DETAIL, DHCPSRV_CQL_ROLLBACK);
     dbconn_.rollback();
 }
