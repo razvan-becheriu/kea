@@ -1743,9 +1743,6 @@ CqlHostDataSourceImpl::get6(const SubnetID& subnet_id,
                             const Host::IdentifierType& identifier_type,
                             const uint8_t* identifier_begin,
                             const size_t identifier_len) const {
-    // Start transaction.
-    CqlTransaction transaction(dbconn_);
-
     // Convert to CQL data types.
     cass_int32_t host_ipv6_subnet_id = static_cast<cass_int32_t>(subnet_id);
     CassBlob host_identifier(identifier_begin, identifier_begin + identifier_len);
@@ -1758,8 +1755,6 @@ CqlHostDataSourceImpl::get6(const SubnetID& subnet_id,
     // Run statement.
     ConstHostPtr result = getHost(CqlHostExchange::GET_HOST_BY_IPV6_SUBNET_ID_AND_HOST_ID,
                                   where_values);
-
-    transaction.commit();
 
     return (result);
 }

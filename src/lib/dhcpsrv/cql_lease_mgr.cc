@@ -444,7 +444,7 @@ CqlLease4Exchange::createBindForInsert(const Lease4Ptr &lease, AnyArray &data) {
         // address: bigint
         // The address in the Lease structure is an IOAddress object.
         // Convert this to an integer for storage.
-        address_ = static_cast<cass_int64_t>(lease_->addr_.addressPlusPortToUint64());
+        address_ = static_cast<cass_int64_t>(lease_->addr_.toUint32());
 
         // hwaddr: blob
         if (lease_->hwaddr_ && lease_->hwaddr_->hwaddr_.size() > 0) {
@@ -2728,13 +2728,6 @@ CqlLeaseMgr::getVersion() const {
 
     std::unique_ptr<CqlVersionExchange> version_exchange(new CqlVersionExchange());
     return *version_exchange->retrieveVersion(dbconn_);
-}
-
-bool
-CqlLeaseMgr::startTransaction() {
-    LOG_DEBUG(dhcpsrv_logger, DHCPSRV_DBG_TRACE_DETAIL, DHCPSRV_CQL_BEGIN_TRANSACTION);
-    dbconn_.startTransaction();
-    return true;
 }
 
 void
