@@ -288,12 +288,6 @@ public:
     /// Rolls back all pending database operations  (no-op for Cassandra)
     void rollback() override final;
 
-    /// @brief Sync database table with kea.conf
-    ///
-    /// Truncates database tables, retrieves reservations read from kea.conf and
-    /// inserts corresponding hosts, reservations and options in the database.
-    void syncReservations() override final;
-
 private:
     /// @brief Pointer to the implementation of the @ref CqlHostDataSource.
     CqlHostDataSourceImpl* impl_;

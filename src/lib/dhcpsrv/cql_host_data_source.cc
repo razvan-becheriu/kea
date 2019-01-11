@@ -32,7 +32,6 @@
 #include <util/buffer.h>
 #include <util/hash.h>
 #include <util/optional_value.h>
-#include <util/threads/reverse_lock.h>  // for ReverseLock
 
 #include <stdint.h>  // for uint64_t
 
@@ -48,7 +47,6 @@ using namespace isc::asiolink;
 using namespace isc::db;
 using namespace isc::dhcp;
 using namespace isc::util;
-using namespace isc::util::thread;  // for ReverseLock
 using namespace isc::data;
 
 namespace {
@@ -1442,10 +1440,6 @@ public:
     /// @brief Implementation of @ref CqlHostDataSource::rollback()
     void rollback();
 
-    /// @brief Implementation of @ref
-    /// CqlHostDataSource::syncReservations()
-    void syncReservations();
-
 protected:
     /// @brief Adds/deletes any options found in the @ref Host object to/from a separate
     ///     table entry.
@@ -1662,25 +1656,6 @@ CqlHostDataSourceImpl::insertOrDelete(const HostPtr& host, bool insert) {
     transaction.commit();
 
     return (result);
-}
-
-void
-CqlHostDataSourceImpl::syncReservations() {
-    ConstHostCollection old_hosts = getAllHosts();
-    for (ConstHostPtr old_host: old_hosts) {
-        HostPtr host = std::const_pointer_cast<Host>(old_host);
-        insertOrDelete(host, false);
-    }
-    HostCollection new_hosts =
-        CfgMgr::instance().getStagingCfg()->getCfgHosts()->getAll();
-    for (HostPtr& host : new_hosts) {
-        try {
-            insertOrDelete(host, true);
-        } catch (const DuplicateEntry& exception) {
-            // A duplicate was being inserted. Duplicates are expected.
-            // Carry on.
-        }
-    }
 }
 
 ConstHostPtr
@@ -2114,8 +2089,6 @@ CqlHostDataSource::~CqlHostDataSource() {
 
 void
 CqlHostDataSource::add(const HostPtr& host) {
-    ReverseLock<std::mutex> rlk(BaseHostDataSource::getLock());
-
     LOG_DEBUG(dhcpsrv_logger, DHCPSRV_DBG_TRACE_DETAIL, DHCPSRV_CQL_HOST_ADD);
 
     impl_->insertOrDelete(host, true);
@@ -2123,8 +2096,6 @@ CqlHostDataSource::add(const HostPtr& host) {
 
 bool
 CqlHostDataSource::del(const SubnetID& subnet_id, const asiolink::IOAddress& address) {
-    ReverseLock<std::mutex> rlk(BaseHostDataSource::getLock());
-
     HostPtr host = std::const_pointer_cast<Host>(impl_->get4(subnet_id, address));
 
     return (host ? impl_->insertOrDelete(host, false) : false);
@@ -2133,8 +2104,6 @@ CqlHostDataSource::del(const SubnetID& subnet_id, const asiolink::IOAddress& add
 bool
 CqlHostDataSource::del4(const SubnetID& subnet_id, const Host::IdentifierType& identifier_type,
                         const uint8_t* identifier_begin, const size_t identifier_len) {
-    ReverseLock<std::mutex> rlk(BaseHostDataSource::getLock());
-
     HostPtr host = std::const_pointer_cast<Host>(impl_->get4(subnet_id, identifier_type,
                                                              identifier_begin, identifier_len));
 
@@ -2144,8 +2113,6 @@ CqlHostDataSource::del4(const SubnetID& subnet_id, const Host::IdentifierType& i
 bool
 CqlHostDataSource::del6(const SubnetID& subnet_id, const Host::IdentifierType& identifier_type,
                         const uint8_t* identifier_begin, const size_t identifier_len) {
-    ReverseLock<std::mutex> rlk(BaseHostDataSource::getLock());
-
     HostPtr host = std::const_pointer_cast<Host>(impl_->get6(subnet_id, identifier_type,
                                                              identifier_begin, identifier_len));
 
@@ -2156,8 +2123,6 @@ ConstHostCollection
 CqlHostDataSource::getAll(const Host::IdentifierType& identifier_type,
                           const uint8_t* identifier_begin,
                           const size_t identifier_len) const {
-    ReverseLock<std::mutex> rlk(BaseHostDataSource::getLock());
-
     LOG_DEBUG(dhcpsrv_logger, DHCPSRV_DBG_TRACE_DETAIL, DHCPSRV_CQL_HOST_GET_ALL);
 
     return (impl_->getAll(identifier_type, identifier_begin, identifier_len));
@@ -2165,8 +2130,6 @@ CqlHostDataSource::getAll(const Host::IdentifierType& identifier_type,
 
 ConstHostCollection
 CqlHostDataSource::getAll4(const asiolink::IOAddress& address) const {
-    ReverseLock<std::mutex> rlk(BaseHostDataSource::getLock());
-
     LOG_DEBUG(dhcpsrv_logger, DHCPSRV_DBG_TRACE_DETAIL, DHCPSRV_CQL_HOST_GET_ALL);
 
     return (impl_->getAll4(address));
@@ -2177,8 +2140,6 @@ CqlHostDataSource::get4(const SubnetID& subnet_id,
                         const Host::IdentifierType& identifier_type,
                         const uint8_t* identifier_begin,
                         const size_t identifier_len) const {
-    ReverseLock<std::mutex> rlk(BaseHostDataSource::getLock());
-
     LOG_DEBUG(dhcpsrv_logger, DHCPSRV_DBG_TRACE_DETAIL, DHCPSRV_CQL_HOST_GET4);
 
     return (impl_->get4(subnet_id, identifier_type, identifier_begin,
@@ -2188,8 +2149,6 @@ CqlHostDataSource::get4(const SubnetID& subnet_id,
 ConstHostPtr
 CqlHostDataSource::get4(const SubnetID& subnet_id,
                         const asiolink::IOAddress& address) const {
-    ReverseLock<std::mutex> rlk(BaseHostDataSource::getLock());
-
     LOG_DEBUG(dhcpsrv_logger, DHCPSRV_DBG_TRACE_DETAIL, DHCPSRV_CQL_HOST_GET4);
 
     return (impl_->get4(subnet_id, address));
@@ -2200,8 +2159,6 @@ CqlHostDataSource::get6(const SubnetID& subnet_id,
                         const Host::IdentifierType& identifier_type,
                         const uint8_t* identifier_begin,
                         const size_t identifier_len) const {
-    ReverseLock<std::mutex> rlk(BaseHostDataSource::getLock());
-
     LOG_DEBUG(dhcpsrv_logger, DHCPSRV_DBG_TRACE_DETAIL, DHCPSRV_CQL_HOST_GET6);
 
     return (impl_->get6(subnet_id, identifier_type, identifier_begin, identifier_len));
@@ -2210,8 +2167,6 @@ CqlHostDataSource::get6(const SubnetID& subnet_id,
 ConstHostPtr
 CqlHostDataSource::get6(const asiolink::IOAddress& prefix,
                         const uint8_t prefix_len) const {
-    ReverseLock<std::mutex> rlk(BaseHostDataSource::getLock());
-
     LOG_DEBUG(dhcpsrv_logger, DHCPSRV_DBG_TRACE_DETAIL, DHCPSRV_CQL_HOST_GET6);
 
     return (impl_->get6(prefix, prefix_len));
@@ -2220,8 +2175,6 @@ CqlHostDataSource::get6(const asiolink::IOAddress& prefix,
 ConstHostPtr
 CqlHostDataSource::get6(const SubnetID& subnet_id,
                         const asiolink::IOAddress& address) const {
-    ReverseLock<std::mutex> rlk(BaseHostDataSource::getLock());
-
     LOG_DEBUG(dhcpsrv_logger, DHCPSRV_DBG_TRACE_DETAIL, DHCPSRV_CQL_HOST_GET6);
 
     return (impl_->get6(subnet_id, address));
@@ -2229,8 +2182,6 @@ CqlHostDataSource::get6(const SubnetID& subnet_id,
 
 ConstHostCollection
 CqlHostDataSource::getAllHosts() const {
-    ReverseLock<std::mutex> rlk(BaseHostDataSource::getLock());
-
     return (impl_->getAllHosts());
 }
 
@@ -2241,8 +2192,6 @@ CqlHostDataSource::getType() const {
 
 std::string
 CqlHostDataSource::getName() const {
-    ReverseLock<std::mutex> rlk(BaseHostDataSource::getLock());
-
     return (impl_->getName());
 }
 
@@ -2253,26 +2202,13 @@ CqlHostDataSource::getDescription() const {
 
 VersionPair
 CqlHostDataSource::getVersion() const {
-    ReverseLock<std::mutex> rlk(BaseHostDataSource::getLock());
-
     LOG_DEBUG(dhcpsrv_logger, DHCPSRV_DBG_TRACE_DETAIL, DHCPSRV_CQL_HOST_DB_GET_VERSION);
 
     return impl_->getVersion();
 }
 
 void
-CqlHostDataSource::syncReservations() {
-    ReverseLock<std::mutex> rlk(BaseHostDataSource::getLock());
-
-    LOG_DEBUG(dhcpsrv_logger, DHCPSRV_DBG_TRACE_DETAIL, DHCPSRV_CQL_HOST_SYNC_RESERVATIONS);
-
-    impl_->syncReservations();
-}
-
-void
 CqlHostDataSource::commit() {
-    ReverseLock<std::mutex> rlk(BaseHostDataSource::getLock());
-
     LOG_DEBUG(dhcpsrv_logger, DHCPSRV_DBG_TRACE_DETAIL, DHCPSRV_CQL_COMMIT);
 
     impl_->commit();
@@ -2280,8 +2216,6 @@ CqlHostDataSource::commit() {
 
 void
 CqlHostDataSource::rollback() {
-    ReverseLock<std::mutex> rlk(BaseHostDataSource::getLock());
-
     LOG_DEBUG(dhcpsrv_logger, DHCPSRV_DBG_TRACE_DETAIL, DHCPSRV_CQL_ROLLBACK);
 
     impl_->rollback();
