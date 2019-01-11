@@ -19,7 +19,6 @@
 
 #include <asiolink/io_address.h>
 #include <cql/cql_exchange.h>
-#include <cql/cql_transaction.h>
 #include <database/db_exceptions.h>
 #include <dhcp/duid.h>
 #include <dhcp/libdhcp++.h>
