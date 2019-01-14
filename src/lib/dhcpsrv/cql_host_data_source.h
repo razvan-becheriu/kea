@@ -19,6 +19,7 @@
 #define CQL_HOST_DATA_SOURCE_H
 
 #include <cql/cql_connection.h>
+#include <database/sql_common.h>
 #include <dhcpsrv/base_host_data_source.h>
 
 #include <string>
