@@ -28,7 +28,6 @@
 
 using namespace isc::db::test;
 using namespace isc::dhcp::bench;
-using namespace isc::dhcp::test;
 using namespace isc::dhcp;
 using namespace std;
 
