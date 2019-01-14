@@ -96,16 +96,6 @@ BENCHMARK_DEFINE_F(CqlHostDataSourceBenchmark, updateHosts)(benchmark::State& st
 }
 
 /// Defines steps necessary for conducting a benchmark that measures
-/// hosts retrieval by getAll(hw-addr, duid) call.
-BENCHMARK_DEFINE_F(CqlHostDataSourceBenchmark, getAllByHWAddrDuid)(benchmark::State& state) {
-    const size_t host_count = state.range(0);
-    while (state.KeepRunning()) {
-        setUpWithInserts(state, host_count);
-        benchGetAllByHWAddrDuid();
-    }
-}
-
-/// Defines steps necessary for conducting a benchmark that measures
 /// hosts retrieval by getAll4(hw-addr, duid) call.
 BENCHMARK_DEFINE_F(CqlHostDataSourceBenchmark, getAll)(benchmark::State& state) {
     const size_t host_count = state.range(0);
@@ -126,16 +116,6 @@ BENCHMARK_DEFINE_F(CqlHostDataSourceBenchmark, getAllv4Resv)(benchmark::State& s
 }
 
 /// Defines steps necessary for conducting a benchmark that measures
-/// hosts retrieval by get4(subnet-id, hw-addr, duid) call.
-BENCHMARK_DEFINE_F(CqlHostDataSourceBenchmark, get4BySubnetHWAddrDuid)(benchmark::State& state) {
-    const size_t host_count = state.range(0);
-    while (state.KeepRunning()) {
-        setUpWithInserts(state, host_count);
-        benchGet4BySubnetHWAddrDuid();
-    }
-}
-
-/// Defines steps necessary for conducting a benchmark that measures
 /// hosts retrieval by get4(identifier-type, identifier, subnet-id) call.
 BENCHMARK_DEFINE_F(CqlHostDataSourceBenchmark, get4IdentifierSubnetId)(benchmark::State& state) {
     const size_t host_count = state.range(0);
@@ -152,16 +132,6 @@ BENCHMARK_DEFINE_F(CqlHostDataSourceBenchmark, get4SubnetIdv4Resrv)(benchmark::S
     while (state.KeepRunning()) {
         setUpWithInserts(state, host_count);
         benchGet4SubnetIdv4Resrv();
-    }
-}
-
-/// Defines steps necessary for conducting a benchmark that measures
-/// hosts retrieval by get6(subnet-id, duid, hw-addr) call.
-BENCHMARK_DEFINE_F(CqlHostDataSourceBenchmark, get6SubnetIdDuidHWAddr)(benchmark::State& state) {
-    const size_t host_count = state.range(0);
-    while (state.KeepRunning()) {
-        setUpWithInserts(state, host_count);
-        benchGet6SubnetIdDuidHWAddr();
     }
 }
 
@@ -208,12 +178,6 @@ BENCHMARK_REGISTER_F(CqlHostDataSourceBenchmark, updateHosts)
     ->Unit(UNIT);
 
 /// Defines parameters necessary for running a benchmark that measures
-/// hosts retrieval by getAll(hw-addr, duid) call.
-BENCHMARK_REGISTER_F(CqlHostDataSourceBenchmark, getAllByHWAddrDuid)
-    ->Range(MIN_HOST_COUNT, MAX_HOST_COUNT)
-    ->Unit(UNIT);
-
-/// Defines parameters necessary for running a benchmark that measures
 /// hosts retrieval by getAll4(hw-addr, duid) call.
 BENCHMARK_REGISTER_F(CqlHostDataSourceBenchmark, getAll)
     ->Range(MIN_HOST_COUNT, MAX_HOST_COUNT)
@@ -226,12 +190,6 @@ BENCHMARK_REGISTER_F(CqlHostDataSourceBenchmark, getAllv4Resv)
     ->Unit(UNIT);
 
 /// Defines parameters necessary for running a benchmark that measures
-/// hosts retrieval by get4(subnet-id, hw-addr, duid) call.
-BENCHMARK_REGISTER_F(CqlHostDataSourceBenchmark, get4BySubnetHWAddrDuid)
-    ->Range(MIN_HOST_COUNT, MAX_HOST_COUNT)
-    ->Unit(UNIT);
-
-/// Defines parameters necessary for running a benchmark that measures
 /// hosts retrieval by get4(identifier-type, identifier, subnet-id) call.
 BENCHMARK_REGISTER_F(CqlHostDataSourceBenchmark, get4IdentifierSubnetId)
     ->Range(MIN_HOST_COUNT, MAX_HOST_COUNT)
@@ -240,12 +198,6 @@ BENCHMARK_REGISTER_F(CqlHostDataSourceBenchmark, get4IdentifierSubnetId)
 /// Defines parameters necessary for running a benchmark that measures
 /// hosts retrieval by get4(subnet-id, v4-reservation) call.
 BENCHMARK_REGISTER_F(CqlHostDataSourceBenchmark, get4SubnetIdv4Resrv)
-    ->Range(MIN_HOST_COUNT, MAX_HOST_COUNT)
-    ->Unit(UNIT);
-
-/// Defines parameters necessary for running a benchmark that measures
-/// hosts retrieval by get6(subnet-id, duid, hw-addr) call.
-BENCHMARK_REGISTER_F(CqlHostDataSourceBenchmark, get6SubnetIdDuidHWAddr)
     ->Range(MIN_HOST_COUNT, MAX_HOST_COUNT)
     ->Unit(UNIT);
 

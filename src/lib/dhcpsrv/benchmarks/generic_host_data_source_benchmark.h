@@ -184,10 +184,6 @@ struct GenericHostDataSourceBenchmark : public ::benchmark::Fixture {
     /// @brief Updates all hosts stored in hosts_ in the benchmarked host backend
     void updateHosts();
 
-    /// @brief Essential steps requires to benchmark host reservation retrieval
-    ///        using getAll(hw-addr, duid) call.
-    void benchGetAllByHWAddrDuid();
-
     /// @brief Essential steps required to benchmark the
     ///        getAll(identifier-type, identifier) call.
     void benchGetAll();
@@ -197,20 +193,12 @@ struct GenericHostDataSourceBenchmark : public ::benchmark::Fixture {
     void getAllv4Resv();
 
     /// @brief Essential steps requires to benchmark host reservation retrieval
-    ///        using get4(subnet-id, hw-addr, duid) call.
-    void benchGet4BySubnetHWAddrDuid();
-
-    /// @brief Essential steps requires to benchmark host reservation retrieval
     ///        using getAll(identifier-type, identifier, subnet-id) call.
     void benchGet4IdentifierSubnetId();
 
     /// @brief Essential steps requires to benchmark host reservation retrieval
     ///        using getAll(v4-reservation) call.
     void benchGet4SubnetIdv4Resrv();
-
-    /// @brief Essential steps requires to benchmark host reservation retrieval
-    ///        using get6(subnet-id, duid, hw-addr) call.
-    void benchGet6SubnetIdDuidHWAddr();
 
     /// @brief Essential steps requires to benchmark host reservation retrieval
     ///        using get6(identifier-type, identifier, subnet-id) call.

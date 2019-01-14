@@ -199,14 +199,6 @@ GenericHostDataSourceBenchmark::updateHosts() {
 }
 
 void
-GenericHostDataSourceBenchmark::benchGetAllByHWAddrDuid() {
-    for (HostPtr host : hosts_) {
-        ConstHostCollection from_hds =
-            hdsptr_->getAll(host->getHWAddress(), host->getDuid());
-    }
-}
-
-void
 GenericHostDataSourceBenchmark::benchGetAll() {
     for (HostPtr host : hosts_) {
         std::vector<uint8_t> hwaddr = host->getIdentifier();
@@ -218,15 +210,6 @@ void
 GenericHostDataSourceBenchmark::getAllv4Resv() {
     for (HostPtr host : hosts_) {
         hdsptr_->getAll4(host->getIPv4Reservation());
-    }
-}
-
-void
-GenericHostDataSourceBenchmark::benchGet4BySubnetHWAddrDuid() {
-    for (HostPtr host : hosts_) {
-        std::vector<uint8_t> hwaddr = host->getIdentifier();
-        hdsptr_->get4(host->getIPv4SubnetID(), HWAddrPtr(new HWAddr(hwaddr,
-                          host->getIdentifierType())), host->getDuid());
     }
 }
 
@@ -243,14 +226,6 @@ void
 GenericHostDataSourceBenchmark::benchGet4SubnetIdv4Resrv() {
     for (HostPtr host : hosts_) {
         hdsptr_->get4(host->getIPv4SubnetID(), host->getIPv4Reservation());
-    }
-}
-
-void
-GenericHostDataSourceBenchmark::benchGet6SubnetIdDuidHWAddr() {
-    for (HostPtr host : hosts_) {
-        hdsptr_->get6(host->getIPv6SubnetID(), host->getDuid(),
-                      host->getHWAddress());
     }
 }
 
