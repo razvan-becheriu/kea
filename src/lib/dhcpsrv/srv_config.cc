@@ -1,10 +1,11 @@
-// Copyright (C) 2014-2018 Internet Systems Consortium, Inc. ("ISC")
+// Copyright (C) 2014-2019 Internet Systems Consortium, Inc. ("ISC")
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 #include <config.h>
+#include <exceptions/exceptions.h>
 #include <dhcpsrv/cfgmgr.h>
 #include <dhcpsrv/srv_config.h>
 #include <dhcpsrv/lease_mgr_factory.h>
@@ -154,6 +155,25 @@ SrvConfig::equals(const SrvConfig& other) const {
     }
     // Pass through all configured hooks libraries.
     return (hooks_config_.equal(other.hooks_config_));
+}
+
+void
+SrvConfig::merge(const ConfigBase& other) {
+    ConfigBase::merge(other);
+
+    try {
+        /// @todo merge other parts of the configuration here.
+
+        const SrvConfig& other_srv_config = dynamic_cast<const SrvConfig&>(other);
+        cfg_subnets4_->merge(*other_srv_config.getCfgSubnets4());
+
+        /// @todo merge other parts of the configuration here.
+
+    } catch (const std::bad_cast&) {
+        isc_throw(InvalidOperation, "internal server error: must use derivation"
+                  " of the SrvConfig as an argument of the call to"
+                  " SrvConfig::merge()");
+    }
 }
 
 void

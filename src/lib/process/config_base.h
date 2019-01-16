@@ -57,6 +57,28 @@ public:
     /// @param other the other configuration to compare to
     bool equals(const ConfigBase& other) const;
 
+    /// @brief Merges specified configuration into this configuration.
+    ///
+    /// This method merges logging and config control configuration into
+    /// this configuration. The new logging configuration replaces the
+    /// existing configuration if the new logging configuration is
+    /// non-empty. The new config control configuration replaces the
+    /// existing configuration if the new logging configuration is
+    /// non-null and non-empty.
+    ///
+    /// @warning The call to @c merge may modify the data in the @c other
+    /// object. Therefore, the caller must not rely on the data held
+    /// in the @c other object after the call to @c merge. Also, the
+    /// data held in @c other must not be modified after the call to
+    /// @c merge because it may affect the merged configuration.
+    ///
+    /// If a derivation of this class implements the @c merge method
+    /// it should call @c ConfigBase::merge.
+    ///
+    /// @param other the other configuration to be merged into this
+    /// configuration.
+    virtual void merge(const ConfigBase& other);
+
     /// @brief Converts to Element representation
     ///
     /// This creates a Map element with the following content (expressed
