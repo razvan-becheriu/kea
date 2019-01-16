@@ -38,7 +38,7 @@ namespace db {
 CqlConnection::CqlConnection(const ParameterMap& parameters)
     : DatabaseConnection(parameters),
       statements_(), cluster_(MakePtr(cass_cluster_new())), session_(MakePtr(cass_session_new())),
-      consistency_(CASS_CONSISTENCY_QUORUM), force_consistency_(true) {
+      consistency_(CASS_CONSISTENCY_QUORUM), max_statement_tries_(1), force_consistency_(true) {
 }
 
 CqlConnection::~CqlConnection() {
