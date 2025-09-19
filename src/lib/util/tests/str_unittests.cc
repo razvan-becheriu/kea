@@ -581,4 +581,108 @@ TEST_F(StringUtilTest, printOrDump) {
     }
 }
 
+
+// ===== BEGIN: Additional tests inserted to enhance coverage =====
+// ---------------------------------------------------------------------------
+// Additional unit tests appended to improve coverage for string utilities.
+// Note: Test framework in use: Google Test (gtest).
+// ---------------------------------------------------------------------------
+
+TEST_F(StringUtilTest, Trim_AdditionalWhitespaceChars) {
+    EXPECT_EQ("ABC", trim("\rABC\r"));
+    EXPECT_EQ("ABC", trim("\r\nABC\r\n"));
+    EXPECT_EQ("ABC", trim("\v\fABC\v\f"));
+}
+
+TEST_F(StringUtilTest, Tokens_EdgeCasesAndEscapesDisabled) {
+    vector<string> result;
+
+    // Only delimiters -> no tokens.
+    result = tokens(",,,", ",");
+    EXPECT_EQ(0, result.size());
+
+    // Leading and trailing delimiters collapse.
+    result = tokens(",alpha,", ",");
+    ASSERT_EQ(1, result.size());
+    EXPECT_EQ(string("alpha"), result[0]);
+
+    // Backslash should be preserved if escaping is disabled.
+    result = tokens("foo\\,bar", ",", false);
+    ASSERT_EQ(2, result.size());
+    EXPECT_EQ(string("foo\\"), result[0]);
+    EXPECT_EQ(string("bar"), result[1]);
+
+    // Escaped delimiter at the very beginning becomes literal ',' in token.
+    result = tokens("\\,leading", ",", true);
+    ASSERT_EQ(1, result.size());
+    EXPECT_EQ(string(",leading"), result[0]);
+}
+
+TEST_F(StringUtilTest, quotedStringToBinary_Additional) {
+    // Trim around quotes but preserve spaces inside the quotes.
+    EXPECT_EQ("abc", checkQuoted("\t'abc'\t"));
+    EXPECT_EQ("  abc  ", checkQuoted("'  abc  '"));
+    EXPECT_EQ(" ", checkQuoted("' '"));
+}
+
+TEST_F(StringUtilTest, decodeColonSeparatedHexString_AdditionalValidAndInvalid) {
+    // Additional valid: lowercase input, automatic zero-padding.
+    checkColonSeparated("a:b:c", "0A0B0C");
+
+    // Invalid characters.
+    vector<uint8_t> decoded;
+    EXPECT_THROW(decodeColonSeparatedHexString("0G:01", decoded), BadValue);
+    EXPECT_THROW(decodeColonSeparatedHexString("zz", decoded), BadValue);
+}
+
+TEST_F(StringUtilTest, decodeFormattedHexString_AdditionalValidAndInvalid) {
+    // Additional valid cases.
+    checkFormatted("F", "0F");
+    checkFormatted("0xF", "0F");
+
+    // Multiple consecutive spaces should be considered consecutive separators and be invalid.
+    vector<uint8_t> decoded;
+    EXPECT_THROW(decodeFormattedHexString("01  02", decoded), BadValue);
+}
+
+TEST_F(StringUtilTest, seekTrimmed_AdditionalTrimValue) {
+    // Trim a non-zero value at the end.
+    vector<uint8_t> buffer = {'a', 'b', 0xFF, 0xFF};
+    auto begin = buffer.begin();
+    auto end = buffer.end();
+    ASSERT_NO_THROW_LOG(end = seekTrimmed(begin, end, 0xFF));
+    EXPECT_EQ(2, distance(begin, end));
+
+    // No matching trim value at the end -> unchanged.
+    buffer = {'a', 'b'};
+    begin = buffer.begin();
+    end = buffer.end();
+    ASSERT_NO_THROW_LOG(end = seekTrimmed(begin, end, 0));
+    EXPECT_EQ(2, distance(begin, end));
+}
+
+TEST_F(StringUtilTest, isPrintable_AsciiBoundaries) {
+    // DEL is non-printable.
+    string s = string(1, '\x7F');
+    EXPECT_FALSE(isPrintable(s));
+
+    // Space and tilde are printable; adding 0x80 makes it non-printable.
+    vector<uint8_t> v = {0x20, 0x7E};
+    EXPECT_TRUE(isPrintable(v));
+    v.push_back(0x80);
+    EXPECT_FALSE(isPrintable(v));
+}
+
+TEST_F(StringUtilTest, printOrDump_MixedPrintableAndTruncation) {
+    // Printable string truncated with ellipsis.
+    EXPECT_EQ("abc..", printOrDump(std::vector<uint8_t>{'a','b','c','d'}, 3));
+
+    // Mixed printable/non-printable -> hex dump after trimming trailing zeros.
+    EXPECT_EQ("41:00:42", printOrDump(std::vector<uint8_t>{'A', 0x00, 'B', 0x00}, 8));
+
+    // Exact fit for hex dump without ellipsis.
+    EXPECT_EQ("00:01:02", printOrDump(std::vector<uint8_t>{0x00, 0x01, 0x02}, 8));
+}
+// ---------------------------------------------------------------------------
+// ===== END: Additional tests inserted to enhance coverage =====
 }  // namespace

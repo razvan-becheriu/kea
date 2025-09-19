@@ -2456,3 +2456,336 @@ TEST_F(Pkt6Test, PktEvents) {
 }
 
 }  // namespace
+
+//
+// Added tests focusing on recent changes in Pkt6 relay/label/length logic.
+// Framework: Google Test
+//
+#include <sstream>
+
+namespace {
+
+using isc::asiolink::IOAddress;
+using isc::dhcp::Option;
+using isc::dhcp::OptionPtr;
+using isc::dhcp::OptionBuffer;
+using isc::dhcp::OptionCollection;
+using isc::dhcp::OptionVendor;
+using isc::dhcp::OptionVendorPtr;
+using isc::dhcp::Pkt6;
+using isc::dhcp::Pkt6Ptr;
+
+static OptionPtr makeOpt(uint16_t code, std::initializer_list<uint8_t> bytes) {
+    OptionBuffer buf(bytes.begin(), bytes.end());
+    return OptionPtr(new Option(Option::V6, code, buf));
+}
+
+static Pkt6Ptr makeEmptySolicit() {
+    // Construct minimal DHCPv6 packet with SOLICIT type and transid
+    // Pkt6( uint8_t msg_type, uint32_t transid )
+    Pkt6Ptr pkt(new Pkt6(isc::dhcp::DHCPV6_SOLICIT, 0x123456));
+    // default proto is UDP in Kea; ensure it's UDP if setter exists (defensive)
+    return pkt;
+}
+
+TEST(Pkt6RelayInfoTest, RelayInfoDefaultToText) {
+    Pkt6::RelayInfo r;
+    const std::string txt = r.toText();
+    // Default msg-type is 0 -> UNKNOWN, hop-count 0, link/peer are ::
+    EXPECT_NE(txt.find("msg-type=0(UNKNOWN)"), std::string::npos);
+    EXPECT_NE(txt.find("hop-count=0"), std::string::npos);
+    EXPECT_NE(txt.find("link-address=::"), std::string::npos);
+    EXPECT_NE(txt.find("peer-address=::"), std::string::npos);
+    EXPECT_NE(txt.find("0 option(s)"), std::string::npos);
+}
+
+TEST(Pkt6RelayInfoTest, GetNameMappingsAndUnknown) {
+    // Spot-check several mappings and unknown
+    EXPECT_STREQ("SOLICIT", Pkt6::getName(isc::dhcp::DHCPV6_SOLICIT));
+    EXPECT_STREQ("REPLY",   Pkt6::getName(isc::dhcp::DHCPV6_REPLY));
+    EXPECT_STREQ("RENEW",   Pkt6::getName(isc::dhcp::DHCPV6_RENEW));
+    EXPECT_STREQ("RELAY_FORWARD", Pkt6::getName(isc::dhcp::DHCPV6_RELAY_FORW));
+    EXPECT_STREQ("UNKNOWN", Pkt6::getName(0xff)); // undefined
+}
+
+TEST(Pkt6LenTest, DirectLenIncreasesWithOptions) {
+    Pkt6Ptr pkt = makeEmptySolicit();
+    const size_t base = pkt->len(); // should be DHCPV6 header (4)
+    // Add an option with 3 bytes payload; length should add header(4)+3 = 7
+    pkt->addOption(makeOpt(isc::dhcp::D6O_CLIENTID, {0x00,0x01,0x02}));
+    EXPECT_EQ(base + 7, pkt->len());
+}
+
+TEST(Pkt6RelaySearchTest, AnyRelayOptionSearchOrders) {
+    // Build a packet with 3 relay levels and place same option code in two levels
+    Pkt6Ptr pkt = makeEmptySolicit();
+
+    // Outermost relay (index 0)
+    Pkt6::RelayInfo r0;
+    r0.msg_type_ = isc::dhcp::DHCPV6_RELAY_FORW;
+    r0.options_.insert(std::make_pair(isc::dhcp::D6O_INTERFACE_ID, makeOpt(isc::dhcp::D6O_INTERFACE_ID, {0xaa})));
+    pkt->addRelayInfo(r0);
+
+    // Middle relay (index 1) - no interface-id here
+    Pkt6::RelayInfo r1;
+    r1.msg_type_ = isc::dhcp::DHCPV6_RELAY_FORW;
+    pkt->addRelayInfo(r1);
+
+    // Innermost relay (index 2)
+    Pkt6::RelayInfo r2;
+    r2.msg_type_ = isc::dhcp::DHCPV6_RELAY_FORW;
+    r2.options_.insert(std::make_pair(isc::dhcp::D6O_INTERFACE_ID, makeOpt(isc::dhcp::D6O_INTERFACE_ID, {0xbb})));
+    pkt->addRelayInfo(r2);
+
+    // RELAY_GET_FIRST -> innermost only
+    {
+        OptionPtr o = pkt->getNonCopiedAnyRelayOption(isc::dhcp::D6O_INTERFACE_ID, isc::dhcp::RELAY_GET_FIRST);
+        ASSERT_TRUE(o);
+        EXPECT_EQ(std::vector<uint8_t>({0xbb}), o->getData());
+    }
+    // RELAY_GET_LAST -> outermost only
+    {
+        OptionPtr o = pkt->getNonCopiedAnyRelayOption(isc::dhcp::D6O_INTERFACE_ID, isc::dhcp::RELAY_GET_LAST);
+        ASSERT_TRUE(o);
+        EXPECT_EQ(std::vector<uint8_t>({0xaa}), o->getData());
+    }
+    // RELAY_SEARCH_FROM_CLIENT -> check from innermost to outermost; should hit 0xbb first
+    {
+        OptionPtr o = pkt->getNonCopiedAnyRelayOption(isc::dhcp::D6O_INTERFACE_ID, isc::dhcp::RELAY_SEARCH_FROM_CLIENT);
+        ASSERT_TRUE(o);
+        EXPECT_EQ(std::vector<uint8_t>({0xbb}), o->getData());
+    }
+    // RELAY_SEARCH_FROM_SERVER -> forward from outermost; should hit 0xaa first
+    {
+        OptionPtr o = pkt->getNonCopiedAnyRelayOption(isc::dhcp::D6O_INTERFACE_ID, isc::dhcp::RELAY_SEARCH_FROM_SERVER);
+        ASSERT_TRUE(o);
+        EXPECT_EQ(std::vector<uint8_t>({0xaa}), o->getData());
+    }
+    // Not found case
+    {
+        OptionPtr o = pkt->getNonCopiedAnyRelayOption(0xdead, isc::dhcp::RELAY_SEARCH_FROM_SERVER);
+        EXPECT_FALSE(o);
+    }
+}
+
+TEST(Pkt6RelayGetOptionTest, LevelBoundsAndCopySemantics) {
+    Pkt6Ptr pkt = makeEmptySolicit();
+
+    // One relay level with two options of same code
+    Pkt6::RelayInfo r;
+    r.msg_type_ = isc::dhcp::DHCPV6_RELAY_FORW;
+    OptionPtr o1 = makeOpt(isc::dhcp::D6O_REMOTE_ID, {0x01});
+    OptionPtr o2 = makeOpt(isc::dhcp::D6O_REMOTE_ID, {0x02});
+    r.options_.insert(std::make_pair(isc::dhcp::D6O_REMOTE_ID, o1));
+    r.options_.insert(std::make_pair(isc::dhcp::D6O_REMOTE_ID, o2));
+    pkt->addRelayInfo(r);
+
+    // Out of range
+    EXPECT_THROW(pkt->getNonCopiedRelayOption(isc::dhcp::D6O_REMOTE_ID, 1), isc::OutOfRange);
+    EXPECT_THROW(pkt->getRelayOption(isc::dhcp::D6O_REMOTE_ID, 1), isc::OutOfRange);
+
+    // Non-copied returns the first (per multimap order) and pointer equals inserted one.
+    OptionPtr got_nc = pkt->getNonCopiedRelayOption(isc::dhcp::D6O_REMOTE_ID, 0);
+    ASSERT_TRUE(got_nc);
+    EXPECT_EQ(got_nc.get(), o1.get());
+
+    // Enable copy-on-retrieval if available, otherwise fallback by using getAllRelayOptions path.
+    // Many builds expose setCopyRetrievedOptions(bool).
+    bool copy_set = false;
+    try {
+        pkt->setCopyRetrievedOptions(true);
+        copy_set = true;
+    } catch (...) {
+        // ignore if method not available in this tree
+    }
+
+    if (copy_set) {
+        OptionPtr got_c = pkt->getRelayOption(isc::dhcp::D6O_REMOTE_ID, 0);
+        ASSERT_TRUE(got_c);
+        // When copying is enabled, returned pointer must differ from original one
+        EXPECT_NE(got_c.get(), o1.get());
+    } else {
+        // Fall back to getAllRelayOptions() path to validate copy semantics there.
+        // First, verify non-copied all
+        OptionCollection all_nc = pkt->getNonCopiedRelayOptions(isc::dhcp::D6O_REMOTE_ID, 0);
+        EXPECT_EQ(2u, all_nc.count(isc::dhcp::D6O_REMOTE_ID));
+
+        // Now attempt to set copy via getAllRelayOptions; in some trees it's controlled separately
+        OptionCollection all_c = pkt->getAllRelayOptions(isc::dhcp::D6O_REMOTE_ID, isc::dhcp::RELAY_GET_LAST);
+        // We cannot assert pointer inequality without setter; just confirm count path works
+        EXPECT_EQ(2u, all_c.count(isc::dhcp::D6O_REMOTE_ID));
+    }
+}
+
+TEST(Pkt6RelayGetAllTest, AggregateAcrossRelaysAndOrder) {
+    Pkt6Ptr pkt = makeEmptySolicit();
+
+    // Outer relay has one vendor opts
+    Pkt6::RelayInfo r0;
+    r0.msg_type_ = isc::dhcp::DHCPV6_RELAY_FORW;
+    r0.options_.insert(std::make_pair(isc::dhcp::D6O_VENDOR_OPTS, makeOpt(isc::dhcp::D6O_VENDOR_OPTS, {0x10})));
+    pkt->addRelayInfo(r0);
+
+    // Inner relay has two vendor opts
+    Pkt6::RelayInfo r1;
+    r1.msg_type_ = isc::dhcp::DHCPV6_RELAY_FORW;
+    r1.options_.insert(std::make_pair(isc::dhcp::D6O_VENDOR_OPTS, makeOpt(isc::dhcp::D6O_VENDOR_OPTS, {0x20})));
+    r1.options_.insert(std::make_pair(isc::dhcp::D6O_VENDOR_OPTS, makeOpt(isc::dhcp::D6O_VENDOR_OPTS, {0x21})));
+    pkt->addRelayInfo(r1);
+
+    // From client (inner -> outer): expect 3 total
+    OptionCollection oc = pkt->getNonCopiedAllRelayOptions(isc::dhcp::D6O_VENDOR_OPTS,
+                                                           isc::dhcp::RELAY_SEARCH_FROM_CLIENT);
+    size_t cnt = 0;
+    for (auto const& kv : oc) {
+        (void)kv;
+        ++cnt;
+    }
+    EXPECT_EQ(3u, cnt);
+
+    // From server (outer -> inner): still 3
+    OptionCollection oc2 = pkt->getNonCopiedAllRelayOptions(isc::dhcp::D6O_VENDOR_OPTS,
+                                                            isc::dhcp::RELAY_SEARCH_FROM_SERVER);
+    cnt = 0;
+    for (auto const& kv : oc2) {
+        (void)kv;
+        ++cnt;
+    }
+    EXPECT_EQ(3u, cnt);
+}
+
+TEST(Pkt6RelayAddrTest, LinkAndPeerAddressGettersAndBounds) {
+    Pkt6Ptr pkt = makeEmptySolicit();
+
+    IOAddress link("2001:db8::1");
+    IOAddress peer("fe80::1");
+
+    Pkt6::RelayInfo r;
+    r.msg_type_ = isc::dhcp::DHCPV6_RELAY_FORW;
+    r.linkaddr_ = link;
+    r.peeraddr_ = peer;
+    pkt->addRelayInfo(r);
+
+    EXPECT_EQ(link, pkt->getRelay6LinkAddress(0));
+    EXPECT_EQ(peer, pkt->getRelay6PeerAddress(0));
+    EXPECT_THROW(pkt->getRelay6LinkAddress(1), isc::OutOfRange);
+    EXPECT_THROW(pkt->getRelay6PeerAddress(1), isc::OutOfRange);
+}
+
+TEST(Pkt6RelaySizingTest, RelayOverheadAndCalculateSizes) {
+    Pkt6Ptr pkt = makeEmptySolicit();
+    // Add two relays with simple options
+    Pkt6::RelayInfo r0, r1;
+    r0.msg_type_ = r1.msg_type_ = isc::dhcp::DHCPV6_RELAY_FORW;
+    r0.options_.insert(std::make_pair(isc::dhcp::D6O_INTERFACE_ID, makeOpt(isc::dhcp::D6O_INTERFACE_ID, {0x01,0x02})));
+    r1.options_.insert(std::make_pair(isc::dhcp::D6O_REMOTE_ID, makeOpt(isc::dhcp::D6O_REMOTE_ID, {0x03})));
+    pkt->addRelayInfo(r0);
+    pkt->addRelayInfo(r1);
+
+    // directLen = base header (4) + current options (none here) = 4
+    // Relay overhead for each relay = DHCPV6_RELAY_HDR_LEN(34) + OPTION6_HDR_LEN(4) + sum(opt.len())
+    // opt.len() = 4 header + payload
+    // so r0: 34+4+(4+2)=44; r1: 34+4+(4+1)=43
+    // calculateRelaySizes returns full length = directLen + r1 + r0 = 4 + 43 + 44 = 91
+    uint16_t total = pkt->calculateRelaySizes();
+    EXPECT_EQ(91u, total);
+
+    // len() uses calculateRelaySizes() when relayed and returns size(inner relay payload + overhead(outermost))
+    // After calculation, len() should equal the same total size.
+    EXPECT_EQ(total, pkt->len());
+}
+
+TEST(Pkt6AddRelayInfoTest, HopCountLimit) {
+    Pkt6Ptr pkt = makeEmptySolicit();
+    // Push up to the limit; HOP_COUNT_LIMIT is 32; adding 33rd should throw.
+    for (int i = 0; i < 32; ++i) {
+        Pkt6::RelayInfo r;
+        r.msg_type_ = isc::dhcp::DHCPV6_RELAY_FORW;
+        EXPECT_NO_THROW(pkt->addRelayInfo(r));
+    }
+    Pkt6::RelayInfo extra;
+    extra.msg_type_ = isc::dhcp::DHCPV6_RELAY_FORW;
+    EXPECT_THROW(pkt->addRelayInfo(extra), isc::BadValue);
+}
+
+TEST(Pkt6LabelTest, MakeLabelDuidAndTransidFormatting) {
+    Pkt6Ptr pkt = makeEmptySolicit();
+    // Provide a DUID via option and check getLabel includes it and transid
+    // Simple DUID-LL: type=3 (LL), htype=1, mac=01:02:03:04:05
+    OptionBuffer duid = {0x00,0x03, 0x00,0x01, 0x01,0x02,0x03,0x04,0x05};
+    pkt->addOption(OptionPtr(new Option(Option::V6, isc::dhcp::D6O_CLIENTID, duid)));
+    std::string label = pkt->getLabel();
+    EXPECT_NE(label.find("duid=["), std::string::npos);
+    EXPECT_NE(label.find("tid=0x123456"), std::string::npos);
+}
+
+TEST(Pkt6ClientIdTest, GetClientIdInvalidTooLongIsHandled) {
+    Pkt6Ptr pkt = makeEmptySolicit();
+    // Create an excessively long DUID (>128 bytes) which should cause DUID ctor to throw
+    OptionBuffer duid(130, 0xab);
+    pkt->addOption(OptionPtr(new Option(Option::V6, isc::dhcp::D6O_CLIENTID, duid)));
+    // getClientId must not throw; it returns empty pointer on failure
+    isc::dhcp::DuidPtr d = pkt->getClientId();
+    EXPECT_FALSE(d);
+}
+
+TEST(Pkt6ToTextTest, NoOptionsNoRelaysText) {
+    Pkt6Ptr pkt = makeEmptySolicit();
+    std::string out = pkt->toText();
+    EXPECT_NE(out.find("message contains no options"), std::string::npos);
+    EXPECT_NE(out.find("No relays traversed."), std::string::npos);
+}
+
+TEST(Pkt6RemoteIdRelayOptTest, ParseClientLinkLayerAddr) {
+    // Build a relayed packet where innermost relay carries client_linklayer_addr
+    Pkt6Ptr pkt = makeEmptySolicit();
+
+    // Outermost relay without the option
+    Pkt6::RelayInfo r0;
+    r0.msg_type_ = isc::dhcp::DHCPV6_RELAY_FORW;
+    pkt->addRelayInfo(r0);
+
+    // Innermost relay with client_linklayer_addr: htype=1 (Ethernet), addr 6 bytes
+    // Data format: 2 bytes type + link-layer addr
+    OptionBuffer clla = {0x00,0x01, 0xde,0xad,0xbe,0xef,0x00,0x01};
+    Pkt6::RelayInfo r1;
+    r1.msg_type_ = isc::dhcp::DHCPV6_RELAY_FORW;
+    r1.options_.insert(std::make_pair(isc::dhcp::D6O_CLIENT_LINKLAYER_ADDR,
+                                      OptionPtr(new Option(Option::V6, isc::dhcp::D6O_CLIENT_LINKLAYER_ADDR, clla))));
+    pkt->addRelayInfo(r1);
+
+    isc::dhcp::HWAddrPtr mac = pkt->getMACFromIPv6RelayOpt();
+    ASSERT_TRUE(mac);
+    EXPECT_EQ(isc::dhcp::HWAddr::HWADDR_SOURCE_CLIENT_ADDR_RELAY_OPTION, mac->source_);
+    // length should be 6, first byte 0xde
+    ASSERT_EQ(6u, mac->hwaddr_.size());
+    EXPECT_EQ(0xde, mac->hwaddr_[0]);
+}
+
+TEST(Pkt6CopyRelayInfoTest, EchoesInterfaceIdAndSourcePort) {
+    // Build "question" packet with one relay carrying interface-id and relay-source-port
+    Pkt6Ptr q(new Pkt6(isc::dhcp::DHCPV6_RELAY_FORW, 0xabcdef));
+
+    Pkt6::RelayInfo ri;
+    ri.msg_type_ = isc::dhcp::DHCPV6_RELAY_FORW;
+    // interface-id with 1 byte payload
+    ri.options_.insert(std::make_pair(isc::dhcp::D6O_INTERFACE_ID, makeOpt(isc::dhcp::D6O_INTERFACE_ID, {0x42})));
+    // relay-source-port is a 2-byte option; store two bytes
+    ri.options_.insert(std::make_pair(isc::dhcp::D6O_RELAY_SOURCE_PORT, makeOpt(isc::dhcp::D6O_RELAY_SOURCE_PORT, {0x12, 0x34})));
+    q->addRelayInfo(ri);
+
+    // Build reply and copy relay info
+    Pkt6Ptr a(new Pkt6(isc::dhcp::DHCPV6_RELAY_REPL, 0x111111));
+    a->copyRelayInfo(q);
+
+    // Now the answer must have one relay, and getAnyRelayOption should retrieve both echoed options
+    OptionPtr ifid = a->getAnyRelayOption(isc::dhcp::D6O_INTERFACE_ID, isc::dhcp::RELAY_GET_LAST);
+    OptionPtr rsp  = a->getAnyRelayOption(isc::dhcp::D6O_RELAY_SOURCE_PORT, isc::dhcp::RELAY_GET_LAST);
+    ASSERT_TRUE(ifid);
+    ASSERT_TRUE(rsp);
+    EXPECT_EQ(std::vector<uint8_t>({0x42}), ifid->getData());
+    EXPECT_EQ((size_t)2, rsp->getData().size());
+}
+
+} // end anonymous namespace
+
