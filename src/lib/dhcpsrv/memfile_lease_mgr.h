@@ -963,6 +963,19 @@ public:
     /// support transactions, this is a no-op.
     virtual void rollback() override;
 
+    /// @brief Check if LFC is running.
+    ///
+    /// @return True if LFC is running, false otherwise (memfile only).
+    static bool isLFCProcessRunning(const std::string file_name, Universe u);
+
+    /// @brief Return status information.
+    ///
+    /// @return Null or a map with the lease file name to add to
+    /// status-get command output.
+    ///
+    /// E.g. { "csv-lease-file": "/var/lib/kea/kea-leases4.csv" }
+    virtual data::ElementPtr getStatus() const override;
+
     //@}
 
     /// @name Public type and method used to determine file names for LFC.
@@ -1012,8 +1025,8 @@ public:
     ///
     /// @param u Universe (V4 or V6).
     /// @param filename optional filename to use.
-    std::string getDefaultLeaseFilePath(Universe u,
-                                        const std::string filename = "") const;
+    static std::string getDefaultLeaseFilePath(Universe u,
+                                               const std::string filename = "");
 
     /// @brief Returns an absolute path to the lease file.
     ///
@@ -1099,6 +1112,7 @@ private:
     /// @todo Consider implementing delaying the lease files loading when
     /// the LFC is in progress by the specified amount of time.
     ///
+    /// @param u Universe (V4 or V6).
     /// @param filename Name of the lease file.
     /// @param lease_file An object representing a lease file to which
     /// the server will store lease updates.
@@ -1114,7 +1128,7 @@ private:
     /// @throw DbOpenError when it is found that the LFC is in progress.
     template<typename LeaseObjectType, typename LeaseFileType,
              typename StorageType>
-    bool loadLeasesFromFiles(const std::string& filename,
+    bool loadLeasesFromFiles(Universe u, const std::string& filename,
                              boost::shared_ptr<LeaseFileType>& lease_file,
                              StorageType& storage);
 
@@ -1545,6 +1559,11 @@ public:
     /// @param page_size The page size used for retrieval.
     /// @return Always return 0 as this function is a noop for not SQL backends.
     virtual size_t upgradeExtendedInfo4(const LeasePageSize& page_size) override;
+
+    /// @brief Handler for kea-lfc-start command.
+    ///
+    /// @returns Status of command.
+    virtual isc::data::ConstElementPtr lfcStartHandler() override;
 
 protected:
 

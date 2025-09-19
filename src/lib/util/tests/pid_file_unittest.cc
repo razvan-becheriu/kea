@@ -6,8 +6,10 @@
 
 #include <config.h>
 
+#include <util/filesystem.h>
 #include <util/pid_file.h>
 #include <gtest/gtest.h>
+#include <boost/scoped_ptr.hpp>
 #include <fstream>
 #include <signal.h>
 #include <stdint.h>
@@ -17,6 +19,7 @@ using namespace isc::util;
 
 // Filenames used for testing.
 const char* TESTNAME = "pid_file.test";
+const char* TESTLOCKNAME = "pid_file.test.lock";
 
 class PIDFileTest : public ::testing::Test {
 public:
@@ -54,18 +57,19 @@ public:
 protected:
     /// @brief Removes any old test files before the test
     virtual void SetUp() {
-        removeTestFile();
+        removeTestFiles();
     }
 
     /// @brief Removes any remaining test files after the test
     virtual void TearDown() {
-        removeTestFile();
+        removeTestFiles();
     }
 
 private:
     /// @brief Removes any remaining test files
-    void removeTestFile() const {
+    void removeTestFiles() const {
         static_cast<void>(remove(absolutePath(TESTNAME).c_str()));
+        static_cast<void>(remove(absolutePath(TESTLOCKNAME).c_str()));
     }
 
 };
@@ -154,7 +158,9 @@ TEST_F(PIDFileTest, pidNotInUse) {
     }
 
     // get a pid between 40000 and 50000
-    pid = randomizePID(10000, 40000);
+    do {
+        pid = randomizePID(10000, 40000);
+    } while (kill(pid, 0) == 0);
 
     // write it
     pid_file.write(pid);
@@ -203,4 +209,40 @@ TEST_F(PIDFileTest, noDeleteFile) {
     // Delete a file we haven't created
     pid_file.deleteFile();
 }
+
+/// @brief Test getting a lock.
+TEST_F(PIDFileTest, lock) {
+    PIDFile pid_file(absolutePath(TESTNAME));
+    EXPECT_EQ(absolutePath(TESTLOCKNAME), pid_file.getLockname());
+
+    PIDLock lock(absolutePath(TESTLOCKNAME));
+    EXPECT_TRUE(lock.isLocked());
+
+    PIDLock lock2(absolutePath(TESTLOCKNAME));
+    EXPECT_FALSE(lock2.isLocked());
+
+    EXPECT_TRUE(file::isFile(absolutePath(TESTLOCKNAME)));
+}
+
+/// @brief Test getting and releasing a lock.
+TEST_F(PIDFileTest, lock2) {
+    {
+        PIDLock lock(absolutePath(TESTLOCKNAME));
+        EXPECT_TRUE(lock.isLocked());
+    }
+    {
+        PIDLock lock2(absolutePath(TESTLOCKNAME));
+        EXPECT_TRUE(lock2.isLocked());
+    }
+    EXPECT_FALSE(file::isFile(absolutePath(TESTLOCKNAME)));
+}
+
+/// @brief Test ignoring a path with a missing component.
+TEST_F(PIDFileTest, lockNoent) {
+    boost::scoped_ptr<PIDLock> lock;
+    ASSERT_NO_THROW(lock.reset(new PIDLock("/does/not/exist.lock")));
+    ASSERT_TRUE(lock);
+    EXPECT_TRUE(lock->isLocked());
+}
+
 } // end of anonymous namespace

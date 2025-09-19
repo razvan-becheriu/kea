@@ -43,6 +43,7 @@ src/share/api/ha-reset.json
 src/share/api/ha-scopes.json
 src/share/api/ha-sync.json
 src/share/api/ha-sync-complete-notify.json
+src/share/api/kea-lfc-start.json
 src/share/api/lease4-add.json
 src/share/api/lease4-del.json
 src/share/api/lease4-get.json
@@ -171,6 +172,7 @@ src/share/api/server-tag-get.json
 src/share/api/shutdown.json
 src/share/api/statistic-get.json
 src/share/api/statistic-get-all.json
+src/share/api/statistic-global-get-all.json
 src/share/api/statistic-remove.json
 src/share/api/statistic-remove-all.json
 src/share/api/statistic-reset.json

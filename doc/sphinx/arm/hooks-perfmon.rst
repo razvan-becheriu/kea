@@ -24,7 +24,7 @@ the server's configuration:
     {
         "hooks-libraries": [
             {
-                "library": "/usr/local/lib/libdhcp_perfmon.so",
+                "library": "libdhcp_perfmon.so",
                 "parameters": {
                     ...
                 }
@@ -191,7 +191,7 @@ and as shown for global values:
 
 The results are reported to StatsMgr, an internal Kea component that reports data as statistics
 that can be retrieved using statistics commands. They can be fetched using the commands
-:isccmd:`statistic-get-all` or :isccmd:`statistic-get`.
+:isccmd:`statistic-get-all`, :isccmd:`statistic-global-get-all`, or :isccmd:`statistic-get`.
 
 Alarms
 ~~~~~~
@@ -408,7 +408,7 @@ A sample configuration is shown below:
     {
         "hooks-libraries": [
         {
-            "library": "lib/kea/hooks/libdhcp_perfmon.so",
+            "library": "libdhcp_perfmon.so",
             "parameters": {
                 "enable-monitoring": true,
                 "interval-width-secs": 5,

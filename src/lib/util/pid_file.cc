@@ -1,4 +1,4 @@
-// Copyright (C) 2015 Internet Systems Consortium, Inc. ("ISC")
+// Copyright (C) 2015-2025 Internet Systems Consortium, Inc. ("ISC")
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -7,20 +7,17 @@
 #include <config.h>
 
 #include <util/pid_file.h>
-#include <cstdio>
-#include <signal.h>
-#include <unistd.h>
+
 #include <cerrno>
+#include <cstring>
+
+#include <fcntl.h>
+#include <signal.h>
+#include <sys/file.h>
+#include <unistd.h>
 
 namespace isc {
 namespace util {
-
-PIDFile::PIDFile(const std::string& filename)
-    : filename_(filename) {
-}
-
-PIDFile::~PIDFile() {
-}
 
 int
 PIDFile::check() const {
@@ -31,7 +28,7 @@ PIDFile::check() const {
     // If we weren't able to open the file treat
     // it as if the process wasn't running
     if (!fs.is_open()) {
-        return (false);
+        return (0);
     }
 
     // Try to get the pid, get the status and get rid of the file
@@ -61,7 +58,7 @@ PIDFile::write() const {
 
 void
 PIDFile::write(int pid) const {
-  std::ofstream fs(filename_.c_str(), std::ofstream::trunc);
+    std::ofstream fs(filename_.c_str(), std::ofstream::trunc);
 
     if (!fs.is_open()) {
         isc_throw(PIDFileError, "Unable to open PID file '"
@@ -87,6 +84,47 @@ PIDFile::deleteFile() const {
         isc_throw(PIDFileError, "Unable to delete PID file '"
                   << filename_ << "'");
     }
+}
+
+PIDLock::PIDLock(const std::string& lockname)
+    : lockname_(lockname), fd_(-1), locked_(false) {
+    // Open the lock file.
+    fd_ = open(lockname_.c_str(), O_RDONLY | O_CREAT, 0600);
+    if (fd_ == -1) {
+        if (errno == ENOENT) {
+            // Ignoring missing component in the path.
+            locked_ = true;
+            return;
+        }
+        std::string errmsg = strerror(errno);
+        isc_throw(PIDFileError, "cannot create pid lockfile '"
+                  << lockname_ << "': " << errmsg);
+    }
+    // Try to acquire the lock. If we can't somebody else is actively
+    // using it.
+    int ret = flock(fd_, LOCK_EX | LOCK_NB);
+    if (ret == 0) {
+        locked_ = true;
+        return;
+    }
+    if (errno != EWOULDBLOCK) {
+        std::string errmsg = strerror(errno);
+        isc_throw(PIDFileError, "cannot lock pid lockfile '"
+                  << lockname_ << "': " << errmsg);
+    }
+}
+
+PIDLock::~PIDLock() {
+    if (fd_ != -1) {
+        if (locked_) {
+            // For symmetry as the close releases the lock...
+            static_cast<void>(flock(fd_, LOCK_UN));
+        }
+        static_cast<void>(close(fd_));
+        static_cast<void>(remove(lockname_.c_str()));
+    }
+    fd_ = -1;
+    locked_ = false;
 }
 
 } // namespace isc::util

@@ -14,6 +14,7 @@
 #include <config/http_command_mgr.h>
 #include <config/unix_command_mgr.h>
 #include <cryptolink/crypto_hash.h>
+#include <database/dbaccess_parser.h>
 #include <dhcp/libdhcp++.h>
 #include <dhcp4/ctrl_dhcp4_srv.h>
 #include <dhcp4/dhcp4_log.h>
@@ -26,6 +27,7 @@
 #include <dhcpsrv/db_type.h>
 #include <dhcpsrv/host_mgr.h>
 #include <dhcpsrv/lease_mgr_factory.h>
+#include <dhcpsrv/memfile_lease_mgr.h>
 #include <hooks/hooks.h>
 #include <hooks/hooks_manager.h>
 #include <process/cfgrpt/config_report.h>
@@ -374,6 +376,21 @@ ControlledDhcpv4Srv::commandConfigSetHandler(const string&,
         return (result);
     }
 
+    ConstElementPtr lease_database = dhcp4->get("lease-database");
+    if (lease_database) {
+        db::DbAccessParser parser;
+        std::string access_string;
+        parser.parse(access_string, lease_database);
+        auto params = parser.getDbAccessParameters();
+        if (params["type"] == "memfile") {
+            string file_name = params["name"];
+            if (Memfile_LeaseMgr::isLFCProcessRunning(file_name, Memfile_LeaseMgr::V4)) {
+                return (isc::config::createAnswer(CONTROL_RESULT_ERROR,
+                        "Can not update configuration while lease file cleanup process is running."));
+            }
+        }
+    }
+
     // stop thread pool (if running)
     MultiThreadingCriticalSection cs;
 
@@ -396,7 +413,7 @@ ControlledDhcpv4Srv::commandConfigSetHandler(const string&,
     ConstElementPtr result = processConfig(dhcp4);
 
     // If the configuration parsed successfully, apply the new logger
-    // configuration and the commit the new configuration.  We apply
+    // configuration and then commit the new configuration.  We apply
     // the logging first in case there's a configuration failure.
     int rcode = 0;
     isc::config::parseAnswer(rcode, result);
@@ -1141,6 +1158,17 @@ ControlledDhcpv4Srv::commandStatusGetHandler(const string&,
         status->set("multi-threading-enabled", Element::create(false));
     }
 
+    // Merge lease manager status.
+    ElementPtr lm_info;
+    if (LeaseMgrFactory::haveInstance()) {
+        lm_info = LeaseMgrFactory::instance().getStatus();
+    }
+    if (lm_info && (lm_info->getType() == Element::map)) {
+        for (auto const& entry : lm_info->mapValue()) {
+            status->set(entry.first, entry.second);
+        }
+    }
+
     // Iterate through the interfaces and get all the errors.
     ElementPtr socket_errors(Element::createList());
     for (IfacePtr const& interface : IfaceMgr::instance().getIfaces()) {
@@ -1193,6 +1221,15 @@ ControlledDhcpv4Srv::commandStatisticSetMaxSampleAgeAllHandler(const string&,
     CfgMgr::instance().getCurrentCfg()->addConfiguredGlobal(
         "statistic-default-sample-age", Element::create(max_age));
     return (answer);
+}
+
+ConstElementPtr
+ControlledDhcpv4Srv::commandLfcStartHandler(const string&, ConstElementPtr) {
+    if (LeaseMgrFactory::haveInstance()) {
+        return (LeaseMgrFactory::instance().lfcStartHandler());
+    }
+    return (createAnswer(CONTROL_RESULT_COMMAND_UNSUPPORTED,
+                         "no lease backend"));
 }
 
 isc::data::ConstElementPtr
@@ -1493,6 +1530,9 @@ ControlledDhcpv4Srv::ControlledDhcpv4Srv(uint16_t server_port /*= DHCP4_SERVER_P
     CommandMgr::instance().registerCommand("dhcp-disable",
         std::bind(&ControlledDhcpv4Srv::commandDhcpDisableHandler, this, ph::_1, ph::_2));
 
+    CommandMgr::instance().registerCommand("kea-lfc-start",
+        std::bind(&ControlledDhcpv4Srv::commandLfcStartHandler, this, ph::_1, ph::_2));
+
     CommandMgr::instance().registerCommand("leases-reclaim",
         std::bind(&ControlledDhcpv4Srv::commandLeasesReclaimHandler, this, ph::_1, ph::_2));
 
@@ -1526,6 +1566,9 @@ ControlledDhcpv4Srv::ControlledDhcpv4Srv(uint16_t server_port /*= DHCP4_SERVER_P
 
     CommandMgr::instance().registerCommand("statistic-get-all",
         std::bind(&StatsMgr::statisticGetAllHandler, ph::_1, ph::_2));
+
+    CommandMgr::instance().registerCommand("statistic-global-get-all",
+        std::bind(&StatsMgr::statisticGlobalGetAllHandler, ph::_1, ph::_2));
 
     CommandMgr::instance().registerCommand("statistic-reset-all",
         std::bind(&StatsMgr::statisticResetAllHandler, ph::_1, ph::_2));
@@ -1583,6 +1626,7 @@ ControlledDhcpv4Srv::~ControlledDhcpv4Srv() {
         CommandMgr::instance().deregisterCommand("config-write");
         CommandMgr::instance().deregisterCommand("dhcp-disable");
         CommandMgr::instance().deregisterCommand("dhcp-enable");
+        CommandMgr::instance().deregisterCommand("kea-lfc-start");
         CommandMgr::instance().deregisterCommand("leases-reclaim");
         CommandMgr::instance().deregisterCommand("subnet4-select-test");
         CommandMgr::instance().deregisterCommand("subnet4o6-select-test");
@@ -1590,6 +1634,7 @@ ControlledDhcpv4Srv::~ControlledDhcpv4Srv() {
         CommandMgr::instance().deregisterCommand("shutdown");
         CommandMgr::instance().deregisterCommand("statistic-get");
         CommandMgr::instance().deregisterCommand("statistic-get-all");
+        CommandMgr::instance().deregisterCommand("statistic-global-get-all");
         CommandMgr::instance().deregisterCommand("statistic-remove");
         CommandMgr::instance().deregisterCommand("statistic-remove-all");
         CommandMgr::instance().deregisterCommand("statistic-reset");

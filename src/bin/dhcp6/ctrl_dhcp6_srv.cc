@@ -14,6 +14,7 @@
 #include <config/http_command_mgr.h>
 #include <config/unix_command_mgr.h>
 #include <cryptolink/crypto_hash.h>
+#include <database/dbaccess_parser.h>
 #include <dhcp/libdhcp++.h>
 #include <dhcp6/ctrl_dhcp6_srv.h>
 #include <dhcp6/dhcp6_log.h>
@@ -26,6 +27,7 @@
 #include <dhcpsrv/db_type.h>
 #include <dhcpsrv/host_mgr.h>
 #include <dhcpsrv/lease_mgr_factory.h>
+#include <dhcpsrv/memfile_lease_mgr.h>
 #include <hooks/hooks.h>
 #include <hooks/hooks_manager.h>
 #include <process/cfgrpt/config_report.h>
@@ -377,6 +379,21 @@ ControlledDhcpv6Srv::commandConfigSetHandler(const string&,
         return (result);
     }
 
+    ConstElementPtr lease_database = dhcp6->get("lease-database");
+    if (lease_database) {
+        db::DbAccessParser parser;
+        std::string access_string;
+        parser.parse(access_string, lease_database);
+        auto params = parser.getDbAccessParameters();
+        if (params["type"] == "memfile") {
+            string file_name = params["name"];
+            if (Memfile_LeaseMgr::isLFCProcessRunning(file_name, Memfile_LeaseMgr::V6)) {
+                return (isc::config::createAnswer(CONTROL_RESULT_ERROR,
+                        "Can not update configuration while lease file cleanup process is running."));
+            }
+        }
+    }
+
     // stop thread pool (if running)
     MultiThreadingCriticalSection cs;
 
@@ -399,7 +416,7 @@ ControlledDhcpv6Srv::commandConfigSetHandler(const string&,
     ConstElementPtr result = processConfig(dhcp6);
 
     // If the configuration parsed successfully, apply the new logger
-    // configuration and the commit the new configuration.  We apply
+    // configuration and then commit the new configuration.  We apply
     // the logging first in case there's a configuration failure.
     int rcode = 0;
     isc::config::parseAnswer(rcode, result);
@@ -905,6 +922,17 @@ ControlledDhcpv6Srv::commandStatusGetHandler(const string&,
         status->set("multi-threading-enabled", Element::create(false));
     }
 
+    // Merge lease manager status.
+    ElementPtr lm_info;
+    if (LeaseMgrFactory::haveInstance()) {
+        lm_info = LeaseMgrFactory::instance().getStatus();
+    }
+    if (lm_info && (lm_info->getType() == Element::map)) {
+        for (auto const& entry : lm_info->mapValue()) {
+            status->set(entry.first, entry.second);
+        }
+    }
+
     status->set("extended-info-tables", Element::create(
                     CfgMgr::instance().getCurrentCfg()->getCfgDbAccess()->getExtendedInfoTablesEnabled()));
 
@@ -960,6 +988,15 @@ ControlledDhcpv6Srv::commandStatisticSetMaxSampleAgeAllHandler(const string&,
     CfgMgr::instance().getCurrentCfg()->addConfiguredGlobal(
         "statistic-default-sample-age", Element::create(max_age));
     return (answer);
+}
+
+ConstElementPtr
+ControlledDhcpv6Srv::commandLfcStartHandler(const string&, ConstElementPtr) {
+    if (LeaseMgrFactory::haveInstance()) {
+        return (LeaseMgrFactory::instance().lfcStartHandler());
+    }
+    return (createAnswer(CONTROL_RESULT_COMMAND_UNSUPPORTED,
+                         "no lease backend"));
 }
 
 isc::data::ConstElementPtr
@@ -1283,6 +1320,9 @@ ControlledDhcpv6Srv::ControlledDhcpv6Srv(uint16_t server_port /*= DHCP6_SERVER_P
     CommandMgr::instance().registerCommand("dhcp-disable",
         std::bind(&ControlledDhcpv6Srv::commandDhcpDisableHandler, this, ph::_1, ph::_2));
 
+    CommandMgr::instance().registerCommand("kea-lfc-start",
+        std::bind(&ControlledDhcpv6Srv::commandLfcStartHandler, this, ph::_1, ph::_2));
+
     CommandMgr::instance().registerCommand("leases-reclaim",
         std::bind(&ControlledDhcpv6Srv::commandLeasesReclaimHandler, this, ph::_1, ph::_2));
 
@@ -1313,6 +1353,9 @@ ControlledDhcpv6Srv::ControlledDhcpv6Srv(uint16_t server_port /*= DHCP6_SERVER_P
 
     CommandMgr::instance().registerCommand("statistic-get-all",
         std::bind(&StatsMgr::statisticGetAllHandler, ph::_1, ph::_2));
+
+    CommandMgr::instance().registerCommand("statistic-global-get-all",
+        std::bind(&StatsMgr::statisticGlobalGetAllHandler, ph::_1, ph::_2));
 
     CommandMgr::instance().registerCommand("statistic-reset-all",
         std::bind(&StatsMgr::statisticResetAllHandler, ph::_1, ph::_2));
@@ -1370,12 +1413,14 @@ ControlledDhcpv6Srv::~ControlledDhcpv6Srv() {
         CommandMgr::instance().deregisterCommand("config-write");
         CommandMgr::instance().deregisterCommand("dhcp-disable");
         CommandMgr::instance().deregisterCommand("dhcp-enable");
+        CommandMgr::instance().deregisterCommand("kea-lfc-start");
         CommandMgr::instance().deregisterCommand("leases-reclaim");
         CommandMgr::instance().deregisterCommand("subnet6-select-test");
         CommandMgr::instance().deregisterCommand("server-tag-get");
         CommandMgr::instance().deregisterCommand("shutdown");
         CommandMgr::instance().deregisterCommand("statistic-get");
         CommandMgr::instance().deregisterCommand("statistic-get-all");
+        CommandMgr::instance().deregisterCommand("statistic-global-get-all");
         CommandMgr::instance().deregisterCommand("statistic-remove");
         CommandMgr::instance().deregisterCommand("statistic-remove-all");
         CommandMgr::instance().deregisterCommand("statistic-reset");

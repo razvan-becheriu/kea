@@ -1,3 +1,22 @@
+2394.	[func]		razvan
+	Added new 'statistic-global-get-all' command for kea-dhcp4
+	and kea-dhcp6 servers, which returns all statistica except
+	subnet counters.
+	(Gitlab #3213)
+
+2393.	[func]		razvan
+	Added global counters for 'assigned-addresses',
+	'assigned-nas' and 'assigned-pds'. The 'stat-lease4-get'
+	and 'stat-lease6-get' now properly return
+	'assigned-addresses' and 'assigned-nas' containing also
+	the 'declined-addresses' address count.
+	(Gitlab #3239, #3925)
+
+2392.	[func]		razvan
+	Reject 'config-set' and 'config-reload' commands when lease
+	file cleanup process is running.
+	(Gitlab #3986)
+
 Kea 3.1.1 (development) released on September 27, 2025
 
 2391.	[bug]		fdupont

@@ -28,6 +28,7 @@ extern const isc::log::MessageID DHCPSRV_CFGMGR_IP_RESERVATIONS_UNIQUE_DUPLICATE
 extern const isc::log::MessageID DHCPSRV_CFGMGR_IP_RESERVATIONS_UNIQUE_DUPLICATES_POSSIBLE;
 extern const isc::log::MessageID DHCPSRV_CFGMGR_NEW_SUBNET4;
 extern const isc::log::MessageID DHCPSRV_CFGMGR_NEW_SUBNET6;
+extern const isc::log::MessageID DHCPSRV_CFGMGR_OPTION_DEFINITION_MISMATCH;
 extern const isc::log::MessageID DHCPSRV_CFGMGR_OPTION_DUPLICATE;
 extern const isc::log::MessageID DHCPSRV_CFGMGR_RENEW_GTR_REBIND;
 extern const isc::log::MessageID DHCPSRV_CFGMGR_SOCKET_RAW_UNSUPPORTED;
@@ -133,6 +134,7 @@ extern const isc::log::MessageID DHCPSRV_MEMFILE_LEASE_LOAD_ROW_ERROR;
 extern const isc::log::MessageID DHCPSRV_MEMFILE_LFC_EXECUTE;
 extern const isc::log::MessageID DHCPSRV_MEMFILE_LFC_LEASE_FILE_RENAME_FAIL;
 extern const isc::log::MessageID DHCPSRV_MEMFILE_LFC_LEASE_FILE_REOPEN_FAIL;
+extern const isc::log::MessageID DHCPSRV_MEMFILE_LFC_RESCHEDULED;
 extern const isc::log::MessageID DHCPSRV_MEMFILE_LFC_SETUP;
 extern const isc::log::MessageID DHCPSRV_MEMFILE_LFC_SPAWN_FAIL;
 extern const isc::log::MessageID DHCPSRV_MEMFILE_LFC_START;

@@ -193,10 +193,10 @@ configuration would be:
         "Dhcp6": {
             "hooks-libraries": [
                 {
-                    "library": "/opt/first_custom_hooks_example.so"
+                    "library": "first_custom_hooks_example.so"
                 },
                 {
-                    "library": "/opt/local/second_custom_hooks_example.so",
+                    "library": "second_custom_hooks_example.so",
                     "parameters": {
                         "mail": "spam@example.com",
                         "floor": 13,
@@ -227,7 +227,7 @@ directory determined during compilation and shown in the config report as
 "Hooks directory".  This value may be overridden at startup by setting the
 environment variable ``KEA_HOOKS_PATH`` to the desired path.  If a path other
 than this value is used in a ``library`` element Kea will emit an error and refuse
-to load the library. For ease of use ``library`` elements may simply omit path
+to load the library. For ease of use ``library`` elements should simply omit path
 components, specifying the file name only as shown below:
 
 .. code-block:: json
@@ -240,23 +240,6 @@ components, specifying the file name only as shown below:
                 },
                 {
                     "library": "second_custom_hooks_example.so"
-                }
-            ]
-        }
-    }
-
-This snippet (on Debian 12) is equivalent to:
-
-.. code-block:: json
-
-    {
-        "Dhcp6": {
-            "hooks-libraries": [
-                {
-                    "library": "/usr/lib/x86_64-linux-gnu/kea/hooks/first_custom_hooks_example.so"
-                },
-                {
-                    "library": "/usr/lib/x86_64-linux-gnu/kea/hooks/second_custom_hooks_example.so"
                 }
             ]
         }
@@ -393,7 +376,7 @@ The Limits hook uses user-context in classes and subnets to set parameters. For 
         ],
         "hooks-libraries": [
           {
-            "library": "/usr/local/lib/libdhcp_limits.so"
+            "library": "libdhcp_limits.so"
           }
         ],
         "subnet6": [
@@ -459,10 +442,10 @@ It lowers the number of concurrently parked packets to 128.
         "parked-packet-limit": 128
         "hooks-libraries": [
           {
-            "library": "/usr/lib/kea/hooks/libdhcp_lease_cmds.so"
+            "library": "libdhcp_lease_cmds.so"
           },
           {
-            "library": "/usr/lib/kea/hooks/libdhcp_ha.so",
+            "library": "libdhcp_ha.so",
             "parameters": {
               "high-availability": [
                 {
@@ -646,12 +629,8 @@ loaded by the correct process per the table below.
    |                                                           |              | which packets receive a response. The limit can be applied   |
    |                                                           |              | per-client class or per-subnet.                              |
    +-----------------------------------------------------------+--------------+--------------------------------------------------------------+
-   | :ref:`MySQL Configuration Backend <hooks-mysql>`          | Kea open     | This hook library is an implementation of the Kea Lease,     |
-   |                                                           | source       | Host and Configuration Backend for MySQL. It uses a          |
-   |                                                           |              | MySQL database as a repository for the Kea leases, host      |
-   |                                                           |              | reservations and configuration information. Kea servers use  |
-   |                                                           |              | this library to fetch their configurations if Configuration  |
-   |                                                           |              | Backend is used.                                             |
+   | :ref:`MySQL Support Library <hooks-mysql>`                | Kea open     | This hook library provides support for using MySQL           |
+   |                                                           | source       | database(s) for Kea Lease, Host, and Configuration Backends. |
    +-----------------------------------------------------------+--------------+--------------------------------------------------------------+
    | :ref:`PerfMon <hooks-perfmon>`                            | Kea open     | With this hook library, :iscman:`kea-dhcp4` and              |
    |                                                           | source       | :iscman:`kea-dhcp6` servers can track and report performance |
@@ -661,12 +640,8 @@ loaded by the correct process per the table below.
    |                                                           | source       | perform ping checks of candidate lease addresses before      |
    |                                                           |              | offering them to clients.                                    |
    +-----------------------------------------------------------+--------------+--------------------------------------------------------------+
-   | :ref:`PostgreSQL Database Backend <hooks-pgsql>`          | Kea open     | This hook library is an implementation of the Kea Lease,     |
-   |                                                           | source       | Host and Configuration Backend for PostgreSQL. It uses a     |
-   |                                                           |              | PostgreSQL database as a repository for the Kea leases, host |
-   |                                                           |              | reservations and configuration information. Kea servers use  |
-   |                                                           |              | this library to fetch their configurations if Configuration  |
-   |                                                           |              | Backend is used.                                             |
+   | :ref:`PostgreSQL Support Library <hooks-pgsql>`           | Kea open     | This hook library provides support for using PostgreSQL      |
+   |                                                           | source       | database(s) for Kea Lease, Host, and Configuration Backends. |
    +-----------------------------------------------------------+--------------+--------------------------------------------------------------+
    | :ref:`RADIUS <hooks-radius>`                              | Kea open     | The RADIUS hook library allows Kea to interact with          |
    |                                                           | source       | RADIUS servers using access and accounting mechanisms. The   |

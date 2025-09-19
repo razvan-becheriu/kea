@@ -181,6 +181,7 @@ std::set<std::string> dhcp4_statistics = {
     "pkt4-offer-sent",
     "pkt4-ack-sent",
     "pkt4-nak-sent",
+    "pkt4-service-disabled",
     "pkt4-parse-failed",
     "pkt4-receive-drop",
     "v4-allocation-fail",
@@ -1245,6 +1246,13 @@ Dhcpv4Srv::runOne() {
                 .arg(query->getLocalAddr().toText())
                 .arg(query->getLocalPort())
                 .arg(query->getIface());
+
+            // Log reception of the packet. We need to increase it early, as
+            // any failures in unpacking will cause the packet to be dropped.
+            // We will increase type specific statistic further down the road.
+            // See processStatsReceived().
+            isc::stats::StatsMgr::instance().addValue("pkt4-received",
+                                                      static_cast<int64_t>(1));
         }
 
         // We used to log that the wait was interrupted, but this is no longer
@@ -1277,6 +1285,11 @@ Dhcpv4Srv::runOne() {
     if (!network_state_->isServiceEnabled()) {
         LOG_DEBUG(bad_packet4_logger, DBGLVL_PKT_HANDLING, DHCP4_PACKET_DROP_0008)
             .arg(query->getLabel());
+        // Increase the statistics of service disabled and dropped packets.
+        isc::stats::StatsMgr::instance().addValue("pkt4-service-disabled",
+                                                  static_cast<int64_t>(1));
+        isc::stats::StatsMgr::instance().addValue("pkt4-receive-drop",
+                                                  static_cast<int64_t>(1));
         return;
     } else {
         if (MultiThreadingMgr::instance().getMode()) {
@@ -1325,13 +1338,6 @@ Dhcpv4Srv::processPacket(Pkt4Ptr query, bool allow_answer_park) {
 
     // All packets belong to ALL.
     query->addClass("ALL");
-
-    // Log reception of the packet. We need to increase it early, as any
-    // failures in unpacking will cause the packet to be dropped. We
-    // will increase type specific statistic further down the road.
-    // See processStatsReceived().
-    isc::stats::StatsMgr::instance().addValue("pkt4-received",
-                                              static_cast<int64_t>(1));
 
     bool skip_unpack = false;
 
@@ -1462,7 +1468,7 @@ Dhcpv4Srv::processPacket(Pkt4Ptr query, bool allow_answer_park) {
         .arg(query->getIface());
     LOG_DEBUG(packet4_logger, DBG_DHCP4_DETAIL_DATA, DHCP4_QUERY_DATA)
         .arg(query->getLabel())
-        .arg(query->toText());
+        .arg(query->toText(true));
 
     // Let's execute all callouts registered for pkt4_receive
     if (HooksManager::calloutsPresent(Hooks.hook_index_pkt4_receive_)) {
@@ -2017,7 +2023,7 @@ Dhcpv4Srv::processPacketBufferSend(CalloutHandlePtr& callout_handle,
             .arg(rsp->getLabel())
             .arg(rsp->getName())
             .arg(static_cast<int>(rsp->getType()))
-            .arg(rsp->toText());
+            .arg(rsp->toText(true));
         sendPacket(rsp);
 
         // Update statistics accordingly for sent packet.
@@ -4124,6 +4130,8 @@ Dhcpv4Srv::processRelease(Pkt4Ptr& release, AllocEngine::ClientContext4Ptr& cont
                 }
 
                 // Need to decrease statistic for assigned addresses.
+                StatsMgr::instance().addValue("assigned-addresses", static_cast<int64_t>(-1));
+
                 StatsMgr::instance().addValue(
                     StatsMgr::generateName("subnet", lease->subnet_id_, "assigned-addresses"),
                     static_cast<int64_t>(-1));

@@ -110,6 +110,12 @@ TEST(IOService, runOneForStopped) {
     EXPECT_EQ(0, cnt);
     EXPECT_FALSE(timed_out);
     EXPECT_FALSE(timer_fired);
+
+    // Cancel the timer.
+    timer.cancel();
+
+    io_service->restart();
+    io_service->poll();
 }
 
 }

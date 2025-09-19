@@ -5,7 +5,7 @@
         "This command retrieves all recorded statistics."
     ],
     "cmd-comment": [
-        "The server responds with the details of all recorded statistics, with a result of 0 indicating that it iterated over all statistics (even when the total number of statistics is zero)."
+        "The server responds with the details of all recorded statistics."
     ],
     "cmd-syntax": [
         "{",
@@ -17,6 +17,12 @@
         "{",
         "    \"result\": 0,",
         "    \"arguments\": {",
+        "        \"assigned-addresses\": [",
+        "            [",
+        "                0,",
+        "                \"2023-06-13 20:42:46.836096\"",
+        "            ]",
+        "        ],",
         "        \"cumulative-assigned-addresses\": [",
         "            [",
         "                0,",
@@ -271,6 +277,18 @@
         "{",
         "    \"result\": 0,",
         "    \"arguments\": {",
+        "        \"assigned-nas\": [",
+        "            [",
+        "                0,",
+        "                \"2023-06-13 21:28:57.196757\"",
+        "            ]",
+        "        ],",
+        "        \"assigned-pds\": [",
+        "            [",
+        "                0,",
+        "                \"2023-06-13 21:28:57.196757\"",
+        "            ]",
+        "        ],",
         "        \"cumulative-assigned-nas\": [",
         "            [",
         "                0,",

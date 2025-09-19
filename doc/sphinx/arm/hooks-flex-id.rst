@@ -40,15 +40,15 @@ be host reservations that are tied to specific values of the flexible
 identifier.
 
 The library can be loaded similarly to other hook libraries. It
-takes a mandatory parameter ``identifier-expression`` and some optional boolean
-parameters like ``replace-client-id`` and ``ignore-iaid``:
+supports the following parameters: ``identifier-expression``, ``replace-client-id``,
+and ``ignore-iaid``:
 
 ::
 
    "Dhcp6": {
        "hooks-libraries": [
            {
-               "library": "/path/libdhcp_flex_id.so",
+               "library": "libdhcp_flex_id.so",
                "parameters": {
                    "identifier-expression": "expression",
                    "replace-client-id": false,
@@ -96,7 +96,7 @@ can be achieved by using the following configuration:
        # add "flex-id" to reservation identifiers
        "hooks-libraries": [
            {
-               "library": "/path/libdhcp_flex_id.so",
+               "library": "libdhcp_flex_id.so",
                "parameters": {
                    "identifier-expression": "substring(relay6[0].option[18].hex,0,8)"
                }
@@ -145,7 +145,7 @@ for non-printable characters and do not require the use of the
        # add "flex-id" to reservation identifiers
        "hooks-libraries": [
            {
-               "library": "/path/libdhcp_flex_id.so",
+               "library": "libdhcp_flex_id.so",
                "parameters": {
                    "identifier-expression": "vendor[4491].option[1026].hex"
                }
@@ -198,7 +198,7 @@ The following is a stub configuration that enables this behavior:
    "Dhcp4": {
        "hooks-libraries": [
            {
-               "library": "/path/libdhcp_flex_id.so",
+               "library": "libdhcp_flex_id.so",
                "parameters": {
                    "identifier-expression": "expression",
                    "replace-client-id": true
@@ -283,3 +283,12 @@ part of the expression.
 
    This functionality breaks RFC compliance and should be enabled only if
    required. When enabled, a warning message is issued at configure time.
+
+.. note::
+
+    The ``ignore-iaid`` parameter operates independently of the flexible identifier
+    feature and may be used without specifying a value for ``identifier-expression``.
+    When ``identifier-expression`` is omitted or specified as an empty string, `""`,
+    the flexible identifier feature is disabled. Kea versions prior to 3.1.2 require
+    a value for ``identifier-expression`` but accept the empty string value. As of
+    Kea 3.1.2, the parameter is optional.

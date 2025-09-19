@@ -241,6 +241,7 @@ std::set<std::string> dhcp6_statistics = {
     "pkt6-reply-sent",
     "pkt6-dhcpv4-response-sent",
     "pkt6-addr-reg-reply-sent",
+    "pkt6-service-disabled",
     "pkt6-parse-failed",
     "pkt6-receive-drop",
     "v6-allocation-fail",
@@ -763,6 +764,11 @@ Dhcpv6Srv::runOne() {
     if (!network_state_->isServiceEnabled()) {
         LOG_DEBUG(bad_packet6_logger, DBGLVL_PKT_HANDLING, DHCP6_PACKET_DROP_DHCP_DISABLED)
             .arg(query->getLabel());
+        // Increase the statistics of service disabled and dropped packets.
+        StatsMgr::instance().addValue("pkt6-service-disabled",
+                                      static_cast<int64_t>(1));
+        StatsMgr::instance().addValue("pkt6-receive-drop",
+                                      static_cast<int64_t>(1));
         return;
     } else {
         if (MultiThreadingMgr::instance().getMode()) {
@@ -3550,6 +3556,8 @@ Dhcpv6Srv::releaseIA_NA(const DuidPtr& duid, const Pkt6Ptr& query,
         }
 
         // Need to decrease statistic for assigned addresses.
+        StatsMgr::instance().addValue("assigned-nas", static_cast<int64_t>(-1));
+
         StatsMgr::instance().addValue(
             StatsMgr::generateName("subnet", lease->subnet_id_, "assigned-nas"),
             static_cast<int64_t>(-1));
@@ -3759,6 +3767,8 @@ Dhcpv6Srv::releaseIA_PD(const DuidPtr& duid, const Pkt6Ptr& query,
         }
 
         // Need to decrease statistic for assigned prefixes.
+        StatsMgr::instance().addValue("assigned-pds", static_cast<int64_t>(-1));
+
         StatsMgr::instance().addValue(
             StatsMgr::generateName("subnet", lease->subnet_id_, "assigned-pds"),
             static_cast<int64_t>(-1));

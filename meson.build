@@ -17,7 +17,7 @@
 project(
     'kea',
     'cpp',
-    version: '3.1.1-git',
+    version: '3.1.2-git',
     meson_version: '>=1.1.0',
     license: 'MPL-2.0',
     license_files: ['COPYING'],
@@ -189,7 +189,10 @@ message(f'Detected system "@SYSTEM@".')
 
 #### Dependencies
 
-boost_dep = dependency('boost', version: '>=1.66', modules: ['system'])
+boost_dep = dependency('boost', version: '>=1.69', required: false)
+if not boost_dep.found()
+    boost_dep = dependency('boost', version: '>=1.66', modules: ['system'])
+endif
 dl_dep = dependency('dl')
 threads_dep = dependency('threads')
 add_project_dependencies(boost_dep, dl_dep, threads_dep, language: ['cpp'])
@@ -200,6 +203,7 @@ boost_headers = [
     'boost/asio/coroutine.hpp',
     'boost/asio/io_context.hpp',
     'boost/asio/ip/address.hpp',
+    'boost/asio/deadline_timer.hpp',
     'boost/asio/signal_set.hpp',
     'boost/circular_buffer.hpp',
     'boost/date_time/posix_time/posix_time_types.hpp',

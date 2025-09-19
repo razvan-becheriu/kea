@@ -347,6 +347,44 @@ dumpDouble(double val, size_t precision) {
     return (oss.str());
 }
 
+std::string
+printOrDump(const std::vector<uint8_t>& data, size_t max_dump) {
+    if (data.empty()) {
+        return ("");
+    }
+
+    auto it = data.begin();
+    bool print_it = true;
+    for ( ; it != data.end() && *it != 0; ++it) {
+        if (!isprint(*it)) {
+            print_it = false;
+            break;
+        }
+    }
+
+    if (print_it && it != data.begin()) {
+        return (std::string(data.begin(), it));
+    }
+
+    bool zeros = true;
+    for (auto zit = data.begin(); zit < data.end(); ++zit) {
+        if (*zit != 0) {
+            zeros = false;
+            break;
+        }
+    }
+
+    if (!zeros) {
+        if (data.size() > max_dump) {
+           return (dumpAsHex(&data[0], max_dump) + "..");
+        }
+
+        return (dumpAsHex(&data[0], data.size()));
+    }
+
+    return ("");
+}
+
 }  // namespace str
 }  // namespace util
 }  // namespace isc

@@ -7,6 +7,7 @@
 #include <config.h>
 
 #include <asiolink/addr_utilities.h>
+#include <cc/command_interpreter.h>
 #include <dhcpsrv/cfg_consistency.h>
 #include <dhcpsrv/cfgmgr.h>
 #include <dhcpsrv/dhcpsrv_exceptions.h>
@@ -42,6 +43,7 @@ const char* KEA_LFC_EXECUTABLE_ENV_NAME = "KEA_LFC_EXECUTABLE";
 }  // namespace
 
 using namespace isc::asiolink;
+using namespace isc::config;
 using namespace isc::data;
 using namespace isc::db;
 using namespace isc::util;
@@ -161,11 +163,6 @@ LFCSetup::setup(const uint32_t lfc_interval,
                 const boost::shared_ptr<CSVLeaseFile4>& lease_file4,
                 const boost::shared_ptr<CSVLeaseFile6>& lease_file6,
                 bool run_once_now) {
-
-    // If to nothing to do, punt
-    if (lfc_interval == 0 && !run_once_now) {
-        return;
-    }
 
     // Start preparing the command line for kea-lfc.
     std::string executable;
@@ -1008,7 +1005,7 @@ Memfile_LeaseMgr::Memfile_LeaseMgr(const DatabaseConnection::ParameterMap& param
         std::string file4 = initLeaseFilePath(V4);
         if (!file4.empty()) {
             conversion_needed = loadLeasesFromFiles<Lease4,
-                                                 CSVLeaseFile4>(file4,
+                                                 CSVLeaseFile4>(V4, file4,
                                                                 lease_file4_,
                                                                 storage4_);
             static_cast<void>(extractExtendedInfo4(false, false));
@@ -1017,7 +1014,7 @@ Memfile_LeaseMgr::Memfile_LeaseMgr(const DatabaseConnection::ParameterMap& param
         std::string file6 = initLeaseFilePath(V6);
         if (!file6.empty()) {
             conversion_needed = loadLeasesFromFiles<Lease6,
-                                                 CSVLeaseFile6>(file6,
+                                                 CSVLeaseFile6>(V6, file6,
                                                                 lease_file6_,
                                                                 storage6_);
             buildExtendedInfoTables6();
@@ -2260,6 +2257,36 @@ Memfile_LeaseMgr::rollback() {
               DHCPSRV_MEMFILE_ROLLBACK);
 }
 
+bool
+Memfile_LeaseMgr::isLFCProcessRunning(const std::string file_name, Universe u) {
+    std::string lease_file(file_name);
+    if (lease_file.empty()) {
+        lease_file = Memfile_LeaseMgr::getDefaultLeaseFilePath(u);
+    }
+    PIDFile pid_file(Memfile_LeaseMgr::appendSuffix(lease_file, FILE_PID));
+    PIDLock pid_lock(pid_file.getLockname());
+    return (!pid_lock.isLocked() || pid_file.check());
+}
+
+ElementPtr
+Memfile_LeaseMgr::getStatus() const {
+    std::string file_name;
+    if (lease_file4_) {
+        file_name = lease_file4_->getFilename();
+    } else if (lease_file6_) {
+        file_name = lease_file6_->getFilename();
+    } else {
+        return (ElementPtr());
+    }
+    if (file_name.empty()) {
+        // Should not happen.
+        return (ElementPtr());
+    }
+    ElementPtr status = Element::createMap();
+    status->set("csv-lease-file", Element::create(file_name));
+    return (status);
+}
+
 std::string
 Memfile_LeaseMgr::appendSuffix(const std::string& file_name,
                                const LFCFileType& file_type) {
@@ -2290,7 +2317,7 @@ Memfile_LeaseMgr::appendSuffix(const std::string& file_name,
 
 std::string
 Memfile_LeaseMgr::getDefaultLeaseFilePath(Universe u,
-                                          std::string filename /* = "" */) const {
+                                          std::string filename /* = "" */) {
     std::ostringstream s;;
     s << CfgMgr::instance().getDataDir();
     if (filename.empty()) {
@@ -2350,7 +2377,7 @@ Memfile_LeaseMgr::initLeaseFilePath(Universe u) {
         lease_file = conn_.getParameter("name");
     } catch (const Exception&) {
         // Not specified, use the default.
-        return (getDefaultLeaseFilePath(u));
+        return (Memfile_LeaseMgr::getDefaultLeaseFilePath(u));
     }
 
     try {
@@ -2365,7 +2392,7 @@ Memfile_LeaseMgr::initLeaseFilePath(Universe u) {
 
 template<typename LeaseObjectType, typename LeaseFileType, typename StorageType>
 bool
-Memfile_LeaseMgr::loadLeasesFromFiles(const std::string& filename,
+Memfile_LeaseMgr::loadLeasesFromFiles(Universe u, const std::string& filename,
                                       boost::shared_ptr<LeaseFileType>& lease_file,
                                       StorageType& storage) {
     // Check if the instance of the LFC is running right now. If it is
@@ -2374,8 +2401,7 @@ Memfile_LeaseMgr::loadLeasesFromFiles(const std::string& filename,
     // it should go through.
     /// @todo Consider applying a timeout for an LFC and retry when this
     /// timeout elapses.
-    PIDFile pid_file(appendSuffix(filename, FILE_PID));
-    if (pid_file.check()) {
+    if (Memfile_LeaseMgr::isLFCProcessRunning(filename, u)) {
         isc_throw(DbOpenError, "unable to load leases from files while the "
                   "lease file cleanup is in progress");
     }
@@ -2413,14 +2439,14 @@ Memfile_LeaseMgr::loadLeasesFromFiles(const std::string& filename,
     } else {
         // If the leasefile.completed doesn't exist, let's load the leases
         // from leasefile.2 and leasefile.1, if they exist.
-        lease_file.reset(new LeaseFileType(appendSuffix(filename, FILE_PREVIOUS)));
+        lease_file.reset(new LeaseFileType(Memfile_LeaseMgr::appendSuffix(filename, FILE_PREVIOUS)));
         if (lease_file->exists()) {
             LeaseFileLoader::load<LeaseObjectType>(*lease_file, storage,
                                                    max_row_errors);
             conversion_needed = conversion_needed || lease_file->needsConversion();
         }
 
-        lease_file.reset(new LeaseFileType(appendSuffix(filename, FILE_INPUT)));
+        lease_file.reset(new LeaseFileType(Memfile_LeaseMgr::appendSuffix(filename, FILE_INPUT)));
         if (lease_file->exists()) {
             LeaseFileLoader::load<LeaseObjectType>(*lease_file, storage,
                                                    max_row_errors);
@@ -2455,8 +2481,6 @@ Memfile_LeaseMgr::getLFCExitStatus() const {
 
 void
 Memfile_LeaseMgr::lfcCallback() {
-    LOG_INFO(dhcpsrv_logger, DHCPSRV_MEMFILE_LFC_START);
-
     // Check if we're in the v4 or v6 space and use the appropriate file.
     if (lease_file4_) {
         MultiThreadingCriticalSection cs;
@@ -2484,15 +2508,15 @@ Memfile_LeaseMgr::lfcSetup(bool conversion_needed) {
                   << lfc_interval_str << " specified");
     }
 
-    if (lfc_interval > 0 || conversion_needed) {
-        lfc_setup_.reset(new LFCSetup(std::bind(&Memfile_LeaseMgr::lfcCallback, this)));
-        lfc_setup_->setup(lfc_interval, lease_file4_, lease_file6_, conversion_needed);
-    }
+    lfc_setup_.reset(new LFCSetup(std::bind(&Memfile_LeaseMgr::lfcCallback, this)));
+    lfc_setup_->setup(lfc_interval, lease_file4_, lease_file6_, conversion_needed);
 }
 
 template<typename LeaseFileType>
 void
 Memfile_LeaseMgr::lfcExecute(boost::shared_ptr<LeaseFileType>& lease_file) {
+    LOG_INFO(dhcpsrv_logger, DHCPSRV_MEMFILE_LFC_START);
+
     bool do_lfc = true;
 
     // Check the status of the LFC instance.
@@ -2500,8 +2524,8 @@ Memfile_LeaseMgr::lfcExecute(boost::shared_ptr<LeaseFileType>& lease_file) {
     // is an indication that another LFC instance may be in progress or
     // may be stalled. In that case we don't want to rotate the current
     // lease file to avoid overriding the contents of the existing file.
-    CSVFile lease_file_finish(appendSuffix(lease_file->getFilename(), FILE_FINISH));
-    CSVFile lease_file_copy(appendSuffix(lease_file->getFilename(), FILE_INPUT));
+    CSVFile lease_file_finish(Memfile_LeaseMgr::appendSuffix(lease_file->getFilename(), FILE_FINISH));
+    CSVFile lease_file_copy(Memfile_LeaseMgr::appendSuffix(lease_file->getFilename(), FILE_INPUT));
     if (!lease_file_finish.exists() && !lease_file_copy.exists()) {
         // Close the current file so as we can move it to the copy file.
         lease_file->close();
@@ -2549,6 +2573,29 @@ Memfile_LeaseMgr::lfcExecute(boost::shared_ptr<LeaseFileType>& lease_file) {
     if (do_lfc) {
         lfc_setup_->execute();
     }
+}
+
+ConstElementPtr
+Memfile_LeaseMgr::lfcStartHandler() {
+    if (!persistLeases(V4) && !persistLeases(V6)) {
+        std::ostringstream msg;
+        msg << "'persist' parameter of 'memfile' lease backend "
+            << "was configured to 'false'";
+        return (createAnswer(CONTROL_RESULT_COMMAND_UNSUPPORTED, msg.str()));
+    }
+    MultiThreadingCriticalSection cs;
+    // Reschedule the periodic lfc run.
+    if (TimerMgr::instance()->isTimerRegistered("memfile-lfc")) {
+        TimerMgr::instance()->cancel("memfile-lfc");
+        TimerMgr::instance()->setup("memfile-lfc");
+        LOG_INFO(dhcpsrv_logger, DHCPSRV_MEMFILE_LFC_RESCHEDULED);
+    }
+    if (lease_file4_) {
+        lfcExecute(lease_file4_);
+    } else if (lease_file6_) {
+        lfcExecute(lease_file6_);
+    }
+    return (createAnswer(CONTROL_RESULT_SUCCESS, "kea-lfc started"));
 }
 
 LeaseStatsQueryPtr

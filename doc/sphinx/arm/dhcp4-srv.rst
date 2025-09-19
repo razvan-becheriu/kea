@@ -686,7 +686,7 @@ Specify the lease backend hook library location:
    "Dhcp4": { "hooks-libraries": [
        {
            // the MySQL lease backend hook library required for lease storage.
-           "library": "/opt/lib/kea/hooks/libdhcp_mysql.so"
+           "library": "libdhcp_mysql.so"
        }, ... ], ... }
 
 Since Kea.2.7.4, the libdhcp_pgsql.so hook library must be loaded in order to
@@ -698,7 +698,7 @@ Specify the lease backend hook library location.
    "Dhcp4": { "hooks-libraries": [
        {
            // the PostgreSQL lease backend hook library required for lease storage.
-           "library": "/opt/lib/kea/hooks/libdhcp_pgsql.so"
+           "library": "libdhcp_pgsql.so"
        }, ... ], ... }
 
 
@@ -943,7 +943,7 @@ Specify the lease backend hook library location:
    "Dhcp4": { "hooks-libraries": [
        {
            // the MySQL host backend hook library required for host storage.
-           "library": "/opt/lib/kea/hooks/libdhcp_mysql.so"
+           "library": "libdhcp_mysql.so"
        }, ... ], ... }
 
 Since Kea.2.7.4, the libdhcp_pgsql.so hook library must be loaded in order to
@@ -955,7 +955,7 @@ Specify the lease backend hook library location.
    "Dhcp4": { "hooks-libraries": [
        {
            // the PostgreSQL host backend hook library required for host storage.
-           "library": "/opt/lib/kea/hooks/libdhcp_pgsql.so"
+           "library": "libdhcp_pgsql.so"
        }, ... ], ... }
 
 
@@ -2686,6 +2686,12 @@ The definition used to decode a VSI option is:
    Option definitions in client classes are allowed only for this
    limited option set (codes 43 and from 224 to 254), and only for
    DHCPv4.
+
+.. note::
+
+   It is also possible to redefine some standard options in Kea, via
+   the :ref:`hooks-flex-option` hook. Examples of this mechanism are available
+   in this `Knowledgebase article <https://kb.isc.org/docs/redefining-standard-options>`_.
 
 .. _dhcp4-vendor-opts:
 
@@ -7331,8 +7337,8 @@ The DHCPv4 server supports the following statistics:
    |                                                    |                | This statistic is expected to grow |
    |                                                    |                | every time the server transmits a  |
    |                                                    |                | packet. In general, it should      |
-   |                                                    |                | roughly match ``pkt4-received``, as|
-   |                                                    |                | most incoming packets cause the    |
+   |                                                    |                | roughly match ``pkt4-received``,   |
+   |                                                    |                | as most incoming packets cause the |
    |                                                    |                | server to respond. There are       |
    |                                                    |                | exceptions (e.g. DHCPRELEASE), so  |
    |                                                    |                | do not worry if it is less than    |
@@ -7367,6 +7373,10 @@ The DHCPv4 server supports the following statistics:
    |                                                    |                | ``pkt4-nak-sent`` should be close  |
    |                                                    |                | to ``pkt4-request-received``.      |
    +----------------------------------------------------+----------------+------------------------------------+
+   | pkt4-service-disabled                              | integer        | Number of incoming packets that    |
+   |                                                    |                | were dropped when the DHCP service |
+   |                                                    |                | was disabled.                      |
+   +----------------------------------------------------+----------------+------------------------------------+
    | pkt4-parse-failed                                  | integer        | Number of incoming packets that    |
    |                                                    |                | could not be parsed. A non-zero    |
    |                                                    |                | value of this statistic indicates  |
@@ -7379,9 +7389,9 @@ The DHCPv4 server supports the following statistics:
    | pkt4-receive-drop                                  | integer        | Number of incoming packets that    |
    |                                                    |                | were dropped. The exact reason for |
    |                                                    |                | dropping packets is logged, but    |
-   |                                                    |                | the most common reasons may be that|
-   |                                                    |                | an unacceptable packet type was    |
-   |                                                    |                | received, direct responses are     |
+   |                                                    |                | the most common reasons may be     |
+   |                                                    |                | that an unacceptable packet type   |
+   |                                                    |                | was received, direct responses are |
    |                                                    |                | forbidden, or the server ID sent   |
    |                                                    |                | by the client does not match the   |
    |                                                    |                | server's server ID.                |
@@ -7418,12 +7428,22 @@ The DHCPv4 server supports the following statistics:
    |                                                    |                | separately, and is reset during a  |
    |                                                    |                | reconfiguration event.             |
    +----------------------------------------------------+----------------+------------------------------------+
+   | assigned-addresses                                 | integer        | Number of assigned addresses. It   |
+   |                                                    |                | increases every time a new lease   |
+   |                                                    |                | is allocated (as a result of       |
+   |                                                    |                | receiving a DHCPREQUEST message)   |
+   |                                                    |                | and decreases every time a lease   |
+   |                                                    |                | is released (a DHCPRELEASE message |
+   |                                                    |                | is received) or expires, and is    |
+   |                                                    |                | reset during a reconfiguration     |
+   |                                                    |                | event.                             |
+   +----------------------------------------------------+----------------+------------------------------------+
    | cumulative-assigned-addresses                      | integer        | Cumulative number of addresses     |
    |                                                    |                | that have been assigned since      |
    |                                                    |                | server startup. It is incremented  |
    |                                                    |                | each time an address is assigned   |
-   |                                                    |                | and is not reset when the server   |
-   |                                                    |                | is reconfigured.                   |
+   |                                                    |                | and is not reset during a          |
+   |                                                    |                | reconfiguration event.             |
    +----------------------------------------------------+----------------+------------------------------------+
    | subnet[id].cumulative-assigned-addresses           | integer        | Cumulative number of assigned      |
    |                                                    |                | addresses in a given subnet. It    |
@@ -7560,37 +7580,38 @@ The DHCPv4 server supports the following statistics:
    |                                                    |                | recovered. Unlike                  |
    |                                                    |                | ``declined-addresses``, this       |
    |                                                    |                | statistic never decreases. It can  |
-   |                                                    |                | be used as a long-term indicator of|
-   |                                                    |                | how many actual valid declines were|
-   |                                                    |                | processed and recovered from. This |
-   |                                                    |                | is a global statistic that covers  |
-   |                                                    |                | all subnets.                       |
+   |                                                    |                | be used as a long-term indicator   |
+   |                                                    |                | of how many actual valid declines  |
+   |                                                    |                | were processed and recovered from. |
+   |                                                    |                | This is a global statistic that    |
+   |                                                    |                | covers all subnets.                |
    +----------------------------------------------------+----------------+------------------------------------+
    | subnet[id].reclaimed-declined-addresses            | integer        | Number of IPv4 addresses that were |
    |                                                    |                | declined, but have now been        |
    |                                                    |                | recovered. Unlike                  |
    |                                                    |                | ``declined-addresses``, this       |
    |                                                    |                | statistic never decreases. It can  |
-   |                                                    |                | be used as a long-term indicator of|
-   |                                                    |                | how many actual valid declines were|
-   |                                                    |                | processed and recovered from. The  |
-   |                                                    |                | *id* is the subnet ID of a given   |
-   |                                                    |                | subnet. This statistic is exposed  |
-   |                                                    |                | for each subnet separately.        |
+   |                                                    |                | be used as a long-term indicator   |
+   |                                                    |                | of how many actual valid declines  |
+   |                                                    |                | were processed and recovered from. |
+   |                                                    |                | The *id* is the subnet ID of a     |
+   |                                                    |                | given subnet. This statistic is    |
+   |                                                    |                | exposed for each subnet            |
+   |                                                    |                | separately.                        |
    +----------------------------------------------------+----------------+------------------------------------+
    | subnet[id].pool[pid].reclaimed-declined-addresses  | integer        | Number of IPv4 addresses that were |
    |                                                    |                | declined, but have now been        |
    |                                                    |                | recovered. Unlike                  |
    |                                                    |                | ``declined-addresses``, this       |
    |                                                    |                | statistic never decreases. It can  |
-   |                                                    |                | be used as a long-term indicator of|
-   |                                                    |                | how many actual valid declines were|
-   |                                                    |                | processed and recovered from. The  |
-   |                                                    |                | *id* is the subnet ID of a given   |
-   |                                                    |                | subnet. The *pid* is the pool ID   |
-   |                                                    |                | of the pool. This statistic is     |
-   |                                                    |                | exposed for each subnet pool       |
-   |                                                    |                | separately.                        |
+   |                                                    |                | be used as a long-term indicator   |
+   |                                                    |                | of how many actual valid declines  |
+   |                                                    |                | were processed and recovered from. |
+   |                                                    |                | The *id* is the subnet ID of a     |
+   |                                                    |                | given subnet. The *pid* is the     |
+   |                                                    |                | pool ID of the pool. This          |
+   |                                                    |                | statistic is exposed for each      |
+   |                                                    |                | subnet pool separately.            |
    +----------------------------------------------------+----------------+------------------------------------+
    | pkt4-lease-query-received                          | integer        | Number of IPv4 DHCPLEASEQUERY      |
    |                                                    |                | packets received. (Only exists if  |
@@ -7616,8 +7637,8 @@ The DHCPv4 server supports the following statistics:
    |                                                    |                | failures for a particular client.  |
    |                                                    |                | This consists of the number of     |
    |                                                    |                | lease allocation attempts that the |
-   |                                                    |                | server made before giving up, if it|
-   |                                                    |                | was unable to use any of the       |
+   |                                                    |                | server made before giving up, if   |
+   |                                                    |                | it was unable to use any of the    |
    |                                                    |                | address pools. This is a global    |
    |                                                    |                | statistic that covers all subnets. |
    +----------------------------------------------------+----------------+------------------------------------+
@@ -7625,8 +7646,8 @@ The DHCPv4 server supports the following statistics:
    |                                                    |                | failures for a particular client.  |
    |                                                    |                | This consists of the number of     |
    |                                                    |                | lease allocation attempts that the |
-   |                                                    |                | server made before giving up, if it|
-   |                                                    |                | was unable to use any of the       |
+   |                                                    |                | server made before giving up, if   |
+   |                                                    |                | it was unable to use any of the    |
    |                                                    |                | address pools. The *id* is the     |
    |                                                    |                | subnet ID of a given subnet. This  |
    |                                                    |                | statistic is exposed for each      |
@@ -7762,6 +7783,11 @@ The DHCPv4 server supports the following statistics:
    |                                                    |                | leased to another client, this     |
    |                                                    |                | counter is increased by 1.         |
    +----------------------------------------------------+----------------+------------------------------------+
+
+Dropped incoming packets can be counted in the ``pkt4-receive-drop`` and
+a second counter detailing the drop cause:
+- ``pkt4-service-disabled`` - DHCP service is disabled
+- ``pkt4-parse-failed`` - packet parsing raised a fatal error
 
 .. note::
 
@@ -8607,10 +8633,10 @@ database:
            },
            "hooks-libraries": [
                {
-                   "library": "/usr/local/lib/kea/hooks/libdhcp_mysql.so"
+                   "library": "libdhcp_mysql.so"
                },
                {
-                   "library": "/usr/local/lib/kea/hooks/libdhcp_cb_cmds.so"
+                   "library": "libdhcp_cb_cmds.so"
                }
            ]
        }
@@ -8638,10 +8664,10 @@ The following snippet illustrates the use of a PostgreSQL database:
            },
            "hooks-libraries": [
                {
-                   "library": "/usr/local/lib/kea/hooks/libdhcp_pgsql.so"
+                   "library": "libdhcp_pgsql.so"
                },
                {
-                   "library": "/usr/local/lib/kea/hooks/libdhcp_cb_cmds.so"
+                   "library": "libdhcp_cb_cmds.so"
                }
            ]
        }
