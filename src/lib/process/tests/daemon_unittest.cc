@@ -364,3 +364,274 @@ TEST_F(DaemonTest, exitValue) {
 // More tests will appear here as we develop Daemon class.
 
 }
+// Added unit tests for isc::process::Daemon public interface.
+// Test framework: Google Test (gtest).
+// These tests focus on logic exercised in the recent diff of Daemon methods.
+
+#include <gtest/gtest.h>
+#include <process/daemon.h>
+#include <cc/data.h>
+#include <util/filesystem.h>
+
+#include <cstdlib>
+#include <string>
+#include <fstream>
+
+using namespace isc;
+using namespace isc::process;
+using namespace isc::data;
+using namespace isc::util;
+using namespace isc::util::file;
+
+namespace {
+
+// Minimal concrete Daemon for testing (Daemon may have pure virtuals in header).
+class TestDaemon : public Daemon {
+public:
+    TestDaemon() : Daemon() {}
+    // Provide no-op overrides for any pure virtuals if they exist.
+    // If Daemon has pure virtual run/init/shutdown methods, keep them trivial.
+    // In the provided snippet shutdown() and cleanup() are concrete; still, be safe:
+    virtual ~TestDaemon() {}
+
+    // Some Kea daemons expose version; base throws NotImplemented, we keep base behavior.
+};
+
+// Helper to temporarily set/unset an environment variable.
+class EnvVarGuard {
+public:
+    EnvVarGuard(const char* key, const char* value, bool overwrite)
+        : key_(key) {
+        const char* cur = std::getenv(key_);
+        if (cur) {
+            old_.assign(cur);
+            had_old_ = true;
+        }
+        // Use setenv for portability; overwrite flag as provided.
+        setenv(key_, value, overwrite ? 1 : 0);
+    }
+    ~EnvVarGuard() {
+        if (had_old_) {
+            setenv(key_, old_.c_str(), 1);
+        } else {
+            unsetenv(key_);
+        }
+    }
+private:
+    const char* key_;
+    std::string old_;
+    bool had_old_{false};
+};
+
+// Unique filename helper in CWD to avoid external dependencies.
+static std::string uniqueFile(const std::string& base, const std::string& ext) {
+    // Use process ID and a counter from address to add entropy.
+    std::ostringstream os;
+    os << base << "-" << getpid() << "-" << reinterpret_cast<uintptr_t>(&os) << ext;
+    return os.str();
+}
+
+} // namespace
+
+// Verbose flag behavior.
+TEST(DaemonBasicTest, VerboseFlagSetGet) {
+    // Ensure we don't leak state between tests.
+    Daemon::setVerbose(false);
+    EXPECT_FALSE(Daemon::getVerbose());
+
+    Daemon::setVerbose(true);
+    EXPECT_TRUE(Daemon::getVerbose());
+
+    Daemon::setVerbose(false);
+    EXPECT_FALSE(Daemon::getVerbose());
+}
+
+// loggerInit should set KEA_LOGGER_DESTINATION=stdout if it's unset, and not override if set.
+TEST(DaemonBasicTest, LoggerInitSetsEnvWhenUnset) {
+    TestDaemon d;
+    // Ensure var is unset for this scope.
+    unsetenv("KEA_LOGGER_DESTINATION");
+    ASSERT_EQ(nullptr, std::getenv("KEA_LOGGER_DESTINATION"));
+
+    d.loggerInit("test-logger", /*verbose*/false);
+    const char* dest = std::getenv("KEA_LOGGER_DESTINATION");
+    ASSERT_NE(nullptr, dest);
+    EXPECT_STREQ("stdout", dest);
+}
+
+TEST(DaemonBasicTest, LoggerInitDoesNotOverrideExistingEnv) {
+    TestDaemon d;
+    EnvVarGuard g("KEA_LOGGER_DESTINATION", "file", /*overwrite*/1);
+    ASSERT_STREQ("file", std::getenv("KEA_LOGGER_DESTINATION"));
+
+    // loggerInit uses setenv(..., 0) so it must not override "file".
+    d.loggerInit("test-logger", /*verbose*/true);
+    ASSERT_STREQ("file", std::getenv("KEA_LOGGER_DESTINATION"));
+}
+
+// Config file getters/setters and validation.
+TEST(DaemonConfigTest, GetSetConfigFile) {
+    TestDaemon d;
+    EXPECT_TRUE(d.getConfigFile().empty());
+    d.setConfigFile("/etc/kea/kea-dhcp4.conf");
+    EXPECT_EQ("/etc/kea/kea-dhcp4.conf", d.getConfigFile());
+}
+
+TEST(DaemonConfigTest, CheckConfigFileThrowsWhenUnset) {
+    TestDaemon d;
+    EXPECT_THROW(d.checkConfigFile(), isc::BadValue);
+}
+
+TEST(DaemonConfigTest, CheckConfigFileThrowsWhenMissingFilename) {
+    TestDaemon d;
+    d.setConfigFile("/etc/kea/"); // Path with no file name (stem empty) should throw.
+    EXPECT_THROW(d.checkConfigFile(), isc::BadValue);
+}
+
+TEST(DaemonConfigTest, CheckConfigFileAcceptsValidPath) {
+    TestDaemon d;
+    d.setConfigFile("/etc/kea/kea-dhcp6.conf");
+    EXPECT_NO_THROW(d.checkConfigFile());
+}
+
+// checkWriteConfigFile behavior: same dir, empty parent, different parent, empty stem.
+TEST(DaemonConfigTest, CheckWriteConfigFileSameDirectory) {
+    TestDaemon d;
+    d.setConfigFile("/etc/kea/kea-dhcp4.conf");
+    std::string out = "/etc/kea/kea-dhcp4-backup.conf";
+    EXPECT_NO_THROW(d.checkWriteConfigFile(out));
+    EXPECT_EQ("/etc/kea/kea-dhcp4-backup.conf", out);
+}
+
+TEST(DaemonConfigTest, CheckWriteConfigFileEmptyParentGetsPrepended) {
+    TestDaemon d;
+    d.setConfigFile("/etc/kea/kea-dhcp6.conf");
+    std::string out = "kea-dhcp6-backup.conf"; // no parent directory
+    EXPECT_NO_THROW(d.checkWriteConfigFile(out));
+    EXPECT_EQ("/etc/kea/kea-dhcp6-backup.conf", out);
+}
+
+TEST(DaemonConfigTest, CheckWriteConfigFileDifferentParentThrows) {
+    TestDaemon d;
+    d.setConfigFile("/etc/kea/kea-dhcp4.conf");
+    std::string out = "/var/tmp/kea-dhcp4-backup.conf"; // different parent
+    EXPECT_THROW(d.checkWriteConfigFile(out), isc::BadValue);
+}
+
+TEST(DaemonConfigTest, CheckWriteConfigFileEmptyStemThrows) {
+    TestDaemon d;
+    d.setConfigFile("/etc/kea/kea-dhcp4.conf");
+    std::string out = "/etc/kea/"; // missing filename
+    EXPECT_THROW(d.checkWriteConfigFile(out), isc::BadValue);
+}
+
+// Process name get/set.
+TEST(DaemonProcNameTest, GetSetProcName) {
+    EXPECT_TRUE(Daemon::getProcName().empty());
+    Daemon::setProcName("kea-dhcp4");
+    EXPECT_EQ("kea-dhcp4", Daemon::getProcName());
+    Daemon::setProcName(""); // allow empty assignment
+    EXPECT_TRUE(Daemon::getProcName().empty());
+}
+
+// PID file dir get/set and makePIDFileName success/failure.
+TEST(DaemonPidTest, MakePIDFileNameHappyPath) {
+    TestDaemon d;
+    d.setConfigFile("/etc/kea/kea-dhcp4.conf");
+    Daemon::setProcName("kea-dhcp4");
+    d.setPIDFileDir("/tmp"); // override deterministic dir
+    const std::string expected = "/tmp/kea-dhcp4.kea-dhcp4.pid";
+    EXPECT_EQ(expected, d.makePIDFileName());
+}
+
+TEST(DaemonPidTest, MakePIDFileNameThrowsWhenConfigUnset) {
+    TestDaemon d;
+    Daemon::setProcName("kea-dhcp4");
+    d.setPIDFileDir("/tmp");
+    EXPECT_THROW(d.makePIDFileName(), isc::InvalidOperation);
+}
+
+TEST(DaemonPidTest, MakePIDFileNameThrowsWhenConfigMissingStem) {
+    TestDaemon d;
+    d.setConfigFile("/etc/kea/"); // no filename
+    Daemon::setProcName("kea-dhcp4");
+    d.setPIDFileDir("/tmp");
+    EXPECT_THROW(d.makePIDFileName(), isc::BadValue);
+}
+
+TEST(DaemonPidTest, MakePIDFileNameThrowsWhenProcNameUnset) {
+    TestDaemon d;
+    d.setConfigFile("/etc/kea/kea-dhcp6.conf");
+    Daemon::setProcName("");
+    d.setPIDFileDir("/tmp");
+    EXPECT_THROW(d.makePIDFileName(), isc::InvalidOperation);
+}
+
+// PID file name management without touching filesystem.
+TEST(DaemonPidTest, SetPIDFileNameValidations) {
+    TestDaemon d;
+    // Empty name is invalid.
+    EXPECT_THROW(d.setPIDFileName(""), isc::BadValue);
+
+    // Set once is OK; retrieving name should match and lock name non-empty.
+    EXPECT_NO_THROW(d.setPIDFileName("/tmp/test-daemon.pid"));
+    EXPECT_EQ("/tmp/test-daemon.pid", d.getPIDFileName());
+    EXPECT_FALSE(d.getPIDLockName().empty());
+
+    // Setting again should throw InvalidOperation.
+    EXPECT_THROW(d.setPIDFileName("/tmp/another.pid"), isc::InvalidOperation);
+}
+
+// getVersion should throw NotImplemented in base Daemon.
+TEST(DaemonVersionTest, GetVersionThrowsNotImplemented) {
+    TestDaemon d;
+    EXPECT_THROW(d.getVersion(false), isc::NotImplemented);
+}
+
+// Redaction API: default jsonPathsToRedact is empty; redactConfig returns input unchanged.
+TEST(DaemonRedactionTest, JsonPathsToRedactEmptyAndNoopRedaction) {
+    TestDaemon d;
+    // jsonPathsToRedact is non-static in class; call through instance to compile on all setups.
+    auto paths = d.jsonPathsToRedact();
+    EXPECT_TRUE(paths.empty());
+
+    // Prepare a simple config.
+    ConstElementPtr cfg = Element::fromJSON("{\"a\":1,\"b\":{\"c\":\"x\"}}");
+    ConstElementPtr redacted = d.redactConfig(cfg);
+    // Expect pointer equality due to implementation returning input when no paths.
+    EXPECT_EQ(cfg.get(), redacted.get());
+}
+
+// writeConfigFile: happy path writes valid JSON, returns >0; failure paths throw.
+TEST(DaemonWriteConfigFileTest, WriteConfigFileHappyPath) {
+    TestDaemon d;
+    const std::string path = uniqueFile("daemon-write-ok", ".json");
+    ConstElementPtr cfg = Element::fromJSON("{\"answer\":42}");
+    size_t bytes = d.writeConfigFile(path, cfg);
+    EXPECT_GT(bytes, 0u);
+
+    // Verify file exists and contains JSON.
+    std::ifstream in(path.c_str());
+    ASSERT_TRUE(in.good());
+    std::string content((std::istreambuf_iterator<char>(in)),
+                        std::istreambuf_iterator<char>());
+    in.close();
+    EXPECT_NE(std::string::npos, content.find("answer"));
+    // Cleanup
+    std::remove(path.c_str());
+}
+
+TEST(DaemonWriteConfigFileTest, WriteConfigFileNullConfigThrows) {
+    TestDaemon d;
+    const std::string path = uniqueFile("daemon-write-null", ".json");
+    ConstElementPtr null_cfg;
+    EXPECT_THROW(d.writeConfigFile(path, null_cfg), isc::Unexpected);
+}
+
+TEST(DaemonWriteConfigFileTest, WriteConfigFileNonexistentDirectoryThrows) {
+    TestDaemon d;
+    const std::string path = std::string("nonexistent_dir_") + std::to_string(getpid()) + "/out.json";
+    ConstElementPtr cfg = Element::fromJSON("{\"x\":1}");
+    EXPECT_THROW(d.writeConfigFile(path, cfg), isc::Unexpected);
+}
+

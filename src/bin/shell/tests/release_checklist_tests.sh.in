@@ -1,0 +1,192 @@
+#\!/bin/sh
+# release_checklist_tests.sh.in
+# Shell tests for validating the Kea Release Checklist template contents.
+# Framework: plain POSIX sh with simple assert helpers (no external dependencies).
+# These tests focus on the diff-provided checklist content and ensure critical
+# structure, headings, links, and checkboxes remain intact.
+
+set -eu
+
+TEMPLATE_PATH=""
+
+# Discover the checklist template within the repo, preferring issue templates.
+discover_template_path() {
+  for p in \
+    ".gitlab/issue_templates" \
+    ".github/ISSUE_TEMPLATE" \
+    "doc" \
+    "docs" \
+    "src" \
+    "." ; do
+    if [ -d "$p" ]; then
+      # Match by a distinctive title line present in the diff
+      found="$(grep -RIl --line-number 'name: A.B.C release checklist' "$p" 2>/dev/null || true)"
+      if [ -n "$found" ]; then
+        echo "$found" | head -n1
+        return 0
+      fi
+    fi
+  done
+  return 1
+}
+
+fail() { echo "FAIL: $*" >&2; exit 1; }
+pass() { echo "PASS: $*"; }
+
+assert_grep() {
+  patt="$1"; file="$2"; msg="$3"
+  if \! grep -Eq "$patt" "$file"; then
+    fail "$msg (pattern not found: $patt)"
+  fi
+}
+
+assert_no_grep() {
+  patt="$1"; file="$2"; msg="$3"
+  if grep -Eq "$patt" "$file"; then
+    fail "$msg (unexpected pattern present: $patt)"
+  fi
+}
+
+assert_http_links_are_https() {
+  file="$1"
+  if grep -E '\bhttp://[^ ]+' "$file" >/dev/null 2>&1; then
+    fail "Non-HTTPS links detected"
+  fi
+}
+
+run_test() {
+  name="$1"; shift
+  echo "=== $name ==="
+  "$@"
+  echo
+}
+
+main() {
+  TEMPLATE_PATH="$(discover_template_path || true)"
+  if [ -z "${TEMPLATE_PATH:-}" ]; then
+    fail "Could not locate the Release Checklist template (searched common paths)."
+  fi
+  echo "Using template: $TEMPLATE_PATH"
+
+  # 1) Front matter exists and contains expected keys
+  run_test "front_matter" sh -eu -c '
+    assert_grep "^---\s*$" "$TEMPLATE_PATH" "Missing YAML front matter start"
+    assert_grep "^name:\s*A\.B\.C release checklist\s*$" "$TEMPLATE_PATH" "Missing or incorrect name field"
+    assert_grep "^about:\s*Create a new issue using this checklist for each release\.\s*$" "$TEMPLATE_PATH" "Missing or incorrect about field"
+    # Ensure closing front matter
+    awk "/^---\s*$/{c++} END{ if (c<2) exit 1 }" "$TEMPLATE_PATH" || fail "Missing YAML front matter end"
+    pass "Front matter validated"
+  '
+
+  # 2) Core headings present
+  run_test "core_headings" sh -eu -c '
+    for h in \
+      "^# Kea Release Checklist$" \
+      "^## Pre-Release Preparation$" \
+      "^## Build selection, tarballs upload and sanity checks$" \
+      "^## Releasing Tarballs and Packages$" \
+      "^## Marketing$" \
+      "^## Support$" \
+      "^## QA$"
+    do
+      assert_grep "$h" "$TEMPLATE_PATH" "Missing heading: $h"
+    done
+    pass "Headings present"
+  '
+
+  # 3) Legend and release-type markers
+  run_test "legend_and_markers" sh -eu -c '
+    assert_grep "#### Legend" "$TEMPLATE_PATH" "Missing Legend section"
+    for m in \
+      "<mark>Stable or Maintenance Releases Only</mark>" \
+      "<mark>Security Release Only</mark>" \
+      "<mark>Stable, and first of Dev Release</mark>" \
+      "<mark>Latest Stable Release Only</mark>"
+    do
+      assert_grep "$m" "$TEMPLATE_PATH" "Missing marker: $m"
+    done
+    pass "Legend & markers validated"
+  '
+
+  # 4) Check checkbox formatting and numbering integrity
+  run_test "checkbox_formatting" sh -eu -c '
+    # At least N checkboxes exist
+    cnt="$(grep -Ec "^\s*[0-9]+\.\s*\[ \]" "$TEMPLATE_PATH" || true)"
+    [ "${cnt:-0}" -gt 10 ] || fail "Too few checklist items detected ($cnt)"
+    # Nested numbering is allowed; ensure basic pattern is consistent
+    assert_no_grep "^\s*\[ \]" "$TEMPLATE_PATH" "Checkboxes should be numbered (e.g., 1. [ ])"
+    pass "Checkbox formatting OK"
+  '
+
+  # 5) Critical links exist and are https
+  run_test "links_presence" sh -eu -c '
+    for url in \
+      "https://jenkins.aws.isc.org/job/kea-dev/job/ut-dist/" \
+      "https://jenkins.aws.isc.org/job/kea-dev/job/jenkins-tests-report/" \
+      "https://jenkins.aws.isc.org/job/kea-dev/job/build-tarball/Kea_20Build_20Checks/" \
+      "https://gitlab.isc.org/isc-projects/kea-packaging/" \
+      "https://gitlab.isc.org/isc-projects/kea-docker" \
+      "https://jenkins.aws.isc.org/job/kea-dev/job/performance/lastSuccessfulBuild/artifact/qa-dhcp/kea/performance-jenkins/report.html" \
+      "https://gitlab.isc.org/isc-projects/kea/-/blob/master/tools/bump-lib-versions.sh" \
+      "https://gitlab.isc.org/isc-private/qa-dhcp/-/blob/master/kea/build/update-code-for-release.py" \
+      "https://readthedocs.org/projects/kea/builds" \
+      "https://jenkins.aws.isc.org/job/kea-dev/job/release-upload-to-cloudsmith/" \
+      "https://jenkins.aws.isc.org/job/kea-dev/job/release-tarball-upload/" \
+      "https://gitlab.isc.org/isc-private/signing/-/issues" \
+      "https://gitlab.isc.org/isc-projects/kea/-/tags/stable" \
+      "https://app.readthedocs.org/projects/kea/" \
+      "https://kea.readthedocs.io/" \
+      "https://app.readthedocs.org/projects/kea/builds/?version__slug=stable" \
+      "https://wiki.isc.org/bin/view/QA/KeaReleaseProcess#4.%20Sanity%20Checks" \
+      "https://www.isc.org/kea/" \
+      "https://en.wikipedia.org/wiki/Kea_\\(software\\)" \
+      "https://kb.isc.org/docs/en/aa-01615"
+    do
+      # Escape slashes already handled; simply ensure the URL string exists
+      if \! grep -Fq "$url" "$TEMPLATE_PATH"; then
+        fail "Missing expected link: $url"
+      fi
+    done
+    assert_http_links_are_https "$TEMPLATE_PATH"
+    pass "Critical links present and HTTPS-only"
+  '
+
+  # 6) Ensure signature and tagging commands present (security-sensitive checks)
+  run_test "security_and_tagging_snippets" sh -eu -c '
+    assert_grep "sign-tag\.py" "$TEMPLATE_PATH" "Missing sign-tag.py reference"
+    assert_grep "sign_kea_and_upload_asc\.sh" "$TEMPLATE_PATH" "Missing sign_kea_and_upload_asc.sh reference"
+    assert_grep "gpg --list-keys" "$TEMPLATE_PATH" "Missing gpg hint"
+    assert_grep "make-available --public" "$TEMPLATE_PATH" "Missing make-available public command"
+    assert_grep "make-available --private" "$TEMPLATE_PATH" "Missing make-available private command"
+    pass "Security and tagging steps present"
+  '
+
+  # 7) Check that no TODO placeholders besides A.B.C remain
+  run_test "no_todos_left" sh -eu -c '
+    assert_no_grep "TODO|TBD|FIXME" "$TEMPLATE_PATH" "Unexpected TODO-like placeholders"
+    pass "No leftover TODOs"
+  '
+
+  # 8) Validate that the file refers to the expected series placeholders (A.B.C) and variants
+  run_test "version_placeholders" sh -eu -c '
+    assert_grep "A\.B\.C" "$TEMPLATE_PATH" "Missing A.B.C placeholder"
+    # Check examples e.g. 2.3.4 referenced in commands
+    assert_grep "\b2\.3\.4\b" "$TEMPLATE_PATH" "Example version 2.3.4 not present"
+    pass "Version placeholder coverage OK"
+  '
+
+  # 9) Formatting sanity: no trailing whitespace; Windows CRLF should not be present
+  run_test "formatting_sanity" sh -eu -c '
+    if grep -nP "[ \t]+$" "$TEMPLATE_PATH" >/dev/null 2>&1; then
+      fail "Trailing whitespace detected"
+    fi
+    if file "$TEMPLATE_PATH" 2>/dev/null | grep -q "CRLF"; then
+      fail "Windows line endings detected"
+    fi
+    pass "Formatting sanity checks passed"
+  '
+
+  pass "All release checklist tests passed"
+}
+
+main "$@"
